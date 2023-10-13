@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
+use analysis::sigma::AnalysisSeries;
 use anyhow::{anyhow, Result};
 use eframe::egui;
 use egui::ColorImage;
@@ -7,21 +8,17 @@ use egui::Pos2;
 use egui::Vec2;
 // use egui_extras::install_image_loaders;
 use itertools::iproduct;
+use sciimg::prelude::Image;
 use serde::{Deserialize, Serialize};
-use solhat::anaysis::frame_sigma_analysis;
-use solhat::calibrationframe::CalibrationImage;
-use solhat::calibrationframe::ComputeMethod;
-use solhat::context::*;
 use solhat::drizzle::Scale;
-use solhat::limiting::frame_limit_determinate;
-use solhat::offsetting::frame_offset_analysis;
-use solhat::rotation::frame_rotation_analysis;
 use solhat::ser::SerFile;
 use solhat::ser::SerFrame;
-use solhat::stacking::process_frame_stacking;
 use solhat::target::Target;
-use std::path::Path;
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::Mutex;
+
+use tokio::sync::mpsc;
 
 mod taskstatus;
 use taskstatus::*;
@@ -43,6 +40,15 @@ extern crate stump;
 
 #[macro_use]
 extern crate lazy_static;
+
+struct AnalysisResultsContainer {
+    series: Option<AnalysisSeries>,
+}
+
+lazy_static! {
+    static ref ANALYSIS_RESULTS: Arc<Mutex<AnalysisResultsContainer>> =
+        Arc::new(Mutex::new(AnalysisResultsContainer { series: None }));
+}
 
 // https://github.com/emilk/egui/discussions/1574
 pub(crate) fn load_icon() -> eframe::IconData {
@@ -81,10 +87,13 @@ struct SolHat {
 
     #[serde(skip_serializing, skip_deserializing)]
     thumbnail_bias: Option<egui::TextureHandle>,
+
+    #[serde(skip_serializing, skip_deserializing)]
+    analysis_data: Option<AnalysisSeries>,
 }
 
-fn ser_frame_to_retained_image(ser_frame: &SerFrame) -> ColorImage {
-    let mut copied = ser_frame.buffer.clone();
+fn ser_frame_to_retained_image(ser_frame: &Image) -> ColorImage {
+    let mut copied = ser_frame.clone();
     let size: [usize; 2] = [copied.width as _, copied.height as _];
     copied.normalize_to_8bit();
     let mut rgb: Vec<u8> = Vec::with_capacity(copied.height * copied.width * 3);
@@ -107,17 +116,15 @@ fn ser_frame_to_retained_image(ser_frame: &SerFrame) -> ColorImage {
         rgb.push(b as u8);
     });
     ColorImage::from_rgb(size, &rgb)
-    // let f = egui::Image::new(ColorImage::from_rgb(size, &rgb));
-    // egui::Image::from_color_image(
-    //     "thumbnail_main",
-    //     ColorImage::from_rgb(size, &rgb).try_into(),
-    // )
 }
 
 #[tokio::main]
 async fn main() -> Result<(), eframe::Error> {
     stump::set_min_log_level(stump::LogEntryLevel::DEBUG);
     info!("Starting SolHat-UI");
+    stump::set_print(move |s| {
+        println!("{}", s);
+    });
 
     let mut options = eframe::NativeOptions {
         icon_data: Some(load_icon()),
@@ -139,8 +146,7 @@ async fn main() -> Result<(), eframe::Error> {
             app_state.window.window_pos_x as f32,
             app_state.window.window_pos_y as f32,
         ));
-        // This don't work on Linux (Fedora KDE). Windows keep growing...Likely
-        // related to egui's insistence on 1.5x UI scale?
+
         options.initial_window_size = Some(Vec2::new(
             app_state.window.window_width as f32,
             app_state.window.window_height as f32,
@@ -153,6 +159,7 @@ async fn main() -> Result<(), eframe::Error> {
             thumbnail_flat: None,
             thumbnail_darkflat: None,
             thumbnail_bias: None,
+            analysis_data: None,
         })
     } else {
         options.centered = true;
@@ -172,6 +179,7 @@ impl Default for SolHat {
             thumbnail_flat: None,
             thumbnail_darkflat: None,
             thumbnail_bias: None,
+            analysis_data: None,
         }
     }
 }
@@ -242,23 +250,6 @@ macro_rules! show_ser_thumbnail {
 }
 
 impl SolHat {
-    // #[allow(dead_code)]
-    // fn load_thumbnail(&mut self, ui: &mut egui::Ui, force: bool) {
-    //     if let Some(light_path) = &self.state.light {
-    //         if self.state.thumbnail_main.is_none() || force {
-    //             let ser_file = SerFile::load_ser(light_path).unwrap();
-    //             let first_image: SerFrame = ser_file.get_frame(0).unwrap();
-    //             let cimage = ser_frame_to_retained_image(&first_image);
-    //             let texture: egui::TextureHandle =
-    //                 ui.ctx().load_texture("foo", cimage, Default::default());
-    //             ui.image(&texture);
-    //             // self.state.thumbnail_main = Some();
-    //         }
-    //     } else {
-    //         self.state.thumbnail_main = None;
-    //     }
-    // }
-
     fn load_ser_texture(
         ui: &egui::Ui,
         texture_name: &str,
@@ -266,17 +257,39 @@ impl SolHat {
     ) -> egui::TextureHandle {
         let ser_file = SerFile::load_ser(texture_path).unwrap();
         let first_image: SerFrame = ser_file.get_frame(0).unwrap();
-        let cimage = ser_frame_to_retained_image(&first_image);
+        let cimage = ser_frame_to_retained_image(&first_image.buffer);
         ui.ctx()
             .load_texture(texture_name, cimage, Default::default())
+    }
+
+    fn threshold_test(&mut self, ui: &egui::Ui) {
+        if self.state.light.is_some() {
+            let result = analysis::threshold::run_thresh_test(&self.state.to_parameters()).unwrap();
+            let cimage = ser_frame_to_retained_image(&result);
+            let texture = ui
+                .ctx()
+                .load_texture("threshtest-texture", cimage, Default::default());
+
+            self.thumbnail_light = Some(texture);
+        }
     }
 
     fn on_update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         // install_image_loaders(ctx);
         //ctx.set_pixels_per_point(1.0);
         // self.load_thumbnail(false);
+
+        if let Ok(mut results) = ANALYSIS_RESULTS.lock() {
+            if results.series.is_some() {
+                self.analysis_data = results.series.clone();
+                results.series = None;
+            }
+        }
+
         self.state.enforce_value_bounds();
         self.state.window.update_from_window_info(ctx, frame);
+
+        let task_running = taskstatus::is_task_running();
 
         egui::SidePanel::left("left_panel")
             .resizable(true)
@@ -285,45 +298,47 @@ impl SolHat {
                 // Left side controls:
                 /////////////////////////////////
 
-                ui.heading("Inputs");
-                egui::Grid::new("process_grid_inputs")
-                    .num_columns(2)
-                    .spacing([40.0, 4.0])
-                    .striped(true)
-                    .show(ui, |ui| {
-                        self.inputs_frame_contents(ui);
-                    });
-                ui.separator();
+                ui.add_enabled_ui(!task_running, |ui| {
+                    ui.heading("Inputs");
+                    egui::Grid::new("process_grid_inputs")
+                        .num_columns(2)
+                        .spacing([40.0, 4.0])
+                        .striped(true)
+                        .show(ui, |ui| {
+                            self.inputs_frame_contents(ui);
+                        });
+                    ui.separator();
 
-                ui.heading("Output");
-                egui::Grid::new("process_grid_outputs")
-                    .num_columns(2)
-                    .spacing([40.0, 4.0])
-                    .striped(true)
-                    .show(ui, |ui| {
-                        self.outputs_frame_contents(ui);
-                    });
-                ui.separator();
+                    ui.heading("Output");
+                    egui::Grid::new("process_grid_outputs")
+                        .num_columns(2)
+                        .spacing([40.0, 4.0])
+                        .striped(true)
+                        .show(ui, |ui| {
+                            self.outputs_frame_contents(ui);
+                        });
+                    ui.separator();
 
-                ui.heading("Observation");
-                egui::Grid::new("process_grid_observation")
-                    .num_columns(2)
-                    .spacing([40.0, 4.0])
-                    .striped(true)
-                    .show(ui, |ui| {
-                        self.observation_frame_contents(ui);
-                    });
-                ui.separator();
+                    ui.heading("Observation");
+                    egui::Grid::new("process_grid_observation")
+                        .num_columns(2)
+                        .spacing([40.0, 4.0])
+                        .striped(true)
+                        .show(ui, |ui| {
+                            self.observation_frame_contents(ui);
+                        });
+                    ui.separator();
 
-                ui.heading("Process Options");
-                egui::Grid::new("process_grid_options")
-                    .num_columns(2)
-                    .spacing([40.0, 4.0])
-                    .striped(true)
-                    .show(ui, |ui| {
-                        self.options_frame_contents(ui);
-                    });
-                ui.separator();
+                    ui.heading("Process Options");
+                    egui::Grid::new("process_grid_options")
+                        .num_columns(2)
+                        .spacing([40.0, 4.0])
+                        .striped(true)
+                        .show(ui, |ui| {
+                            self.options_frame_contents(ui);
+                        });
+                    ui.separator();
+                });
 
                 match get_task_status() {
                     Some(TaskStatus::TaskPercentage(task_name, len, cnt)) => {
@@ -336,12 +351,16 @@ impl SolHat {
                             };
                             ui.add(egui::ProgressBar::new(pct).animate(true).show_percentage());
                             //ui.spinner();
+                            if ui.button("Cancel").clicked() {
+                                cancel::set_request_cancel();
+                                // Do STUFF!
+                            }
                         });
                     }
                     None => {
                         ui.vertical_centered(|ui| {
                             ui.add_enabled_ui(self.enable_start(), |ui| {
-                                if ui.button("START").clicked() {
+                                if ui.button("Start").clicked() {
                                     let output_filename =
                                         self.state.assemble_output_filename().unwrap();
                                     self.run(output_filename);
@@ -385,11 +404,13 @@ impl SolHat {
                         PreviewPane::Bias,
                         "Bias",
                     );
-                    ui.selectable_value(
-                        &mut self.state.window.selected_preview_pane,
-                        PreviewPane::Analysis,
-                        "Analysis",
-                    );
+                    if self.analysis_data.is_some() {
+                        ui.selectable_value(
+                            &mut self.state.window.selected_preview_pane,
+                            PreviewPane::Analysis,
+                            "Analysis",
+                        );
+                    }
                 });
                 ui.separator();
 
@@ -428,6 +449,14 @@ impl SolHat {
                 }
             });
         });
+
+        egui::TopBottomPanel::bottom("bottom_panel")
+            .resizable(true)
+            .show(ctx, |ui| {
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    // TODO: Log viewer goes here
+                });
+            });
     }
 
     fn outputs_frame_contents(&mut self, ui: &mut egui::Ui) {
@@ -513,6 +542,7 @@ impl SolHat {
         ui.label("Object Detection Threshold:");
         ui.add(egui::DragValue::new(&mut self.state.obj_detection_threshold).speed(10.0));
         if ui.add(egui::Button::new("Test")).clicked() {
+            self.threshold_test(&ui);
             // Do stuff
         }
         ui.end_row();
@@ -600,7 +630,9 @@ impl SolHat {
 
         tokio::spawn(async move {
             {
-                sigma::run_sigma_analysis(state_copy).await.unwrap();
+                let analysis_data = sigma::run_sigma_analysis(state_copy).await.unwrap();
+                // TODO: Seriously, Kevin, learn to do proper data flow. Come on.
+                ANALYSIS_RESULTS.lock().unwrap().series = Some(analysis_data);
             }
         });
     }

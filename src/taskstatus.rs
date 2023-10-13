@@ -15,6 +15,14 @@ lazy_static! {
         Arc::new(Mutex::new(TaskStatusContainer::default()));
 }
 
+pub fn is_task_running() -> bool {
+    if let Ok(status) = TASK_STATUS_QUEUE.lock() {
+        status.status.is_some()
+    } else {
+        false
+    }
+}
+
 pub fn get_task_status() -> Option<TaskStatus> {
     if let Ok(status) = TASK_STATUS_QUEUE.lock() {
         status.status.clone()

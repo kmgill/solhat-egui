@@ -27,7 +27,7 @@ pub struct AnalysisRange {
     max: f64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AnalysisSeries {
     sigma_list: Vec<f64>,
 }
