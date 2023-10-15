@@ -208,7 +208,7 @@ fn truncate_to(s: &str, max_len: usize) -> String {
 }
 
 macro_rules! create_file_input {
-    ($ui:expr, $name:expr, $state:expr, $state_property:expr, $open_type_name:expr, $open_type_ext:expr) => {{
+    ($ui:expr, $name:expr, $state:expr, $state_property:expr, $thumb_property:expr, $open_type_name:expr, $open_type_ext:expr) => {{
         $ui.label(&format!("{}:", $name));
         $ui.monospace(truncate_to(
             &$state_property.clone().unwrap_or("".to_owned()),
@@ -222,10 +222,12 @@ macro_rules! create_file_input {
                 .pick_file()
             {
                 $state_property = Some(path.display().to_string());
+                $thumb_property = None;
                 $state.window.update_last_opened_folder(&path);
             }
         }
         if $ui.button("Clear").clicked() {
+            $thumb_property = None;
             $state_property = None;
         }
         $ui.end_row();
@@ -233,10 +235,16 @@ macro_rules! create_file_input {
 }
 
 macro_rules! show_ser_thumbnail {
-    ($ui:expr, $path_option:expr, $texture_name:expr, $state_property:expr) => {{
+    ($ui:expr, $state:expr, $path_option:expr, $texture_name:expr, $state_property:expr) => {{
         if let Some(ser_path) = &$path_option {
             if $state_property.is_none() {
                 let texture = SolHat::load_ser_texture(&$ui, $texture_name, &ser_path);
+                if $state.crop_width == 0 {
+                    $state.crop_width = texture.size()[0];
+                }
+                if $state.crop_height == 0 {
+                    $state.crop_height = texture.size()[1];
+                }
                 $state_property = Some(texture);
             }
 
@@ -417,30 +425,35 @@ impl SolHat {
                 match self.state.window.selected_preview_pane {
                     PreviewPane::Light => show_ser_thumbnail!(
                         ui,
+                        self.state,
                         self.state.light,
                         "thumbnail-light",
                         self.thumbnail_light
                     ),
                     PreviewPane::Dark => show_ser_thumbnail!(
                         ui,
+                        self.state,
                         self.state.dark,
                         "thumbnail-dark",
                         self.thumbnail_dark
                     ),
                     PreviewPane::Flat => show_ser_thumbnail!(
                         ui,
+                        self.state,
                         self.state.flat,
                         "thumbnail-flat",
                         self.thumbnail_flat
                     ),
                     PreviewPane::DarkFlat => show_ser_thumbnail!(
                         ui,
+                        self.state,
                         self.state.darkflat,
                         "thumbnail-darkflat",
                         self.thumbnail_darkflat
                     ),
                     PreviewPane::Bias => show_ser_thumbnail!(
                         ui,
+                        self.state,
                         self.state.bias,
                         "thumbnail-bias",
                         self.thumbnail_bias
@@ -486,23 +499,57 @@ impl SolHat {
             .spacing([40.0, 4.0])
             .striped(true)
             .show(ui, |ui| {
-                create_file_input!(ui, "Light", self.state, self.state.light, "SER", "ser");
-                create_file_input!(ui, "Dark", self.state, self.state.dark, "SER", "ser");
-                create_file_input!(ui, "Flat", self.state, self.state.flat, "SER", "ser");
+                create_file_input!(
+                    ui,
+                    "Light",
+                    self.state,
+                    self.state.light,
+                    self.thumbnail_light,
+                    "SER",
+                    "ser"
+                );
+                create_file_input!(
+                    ui,
+                    "Dark",
+                    self.state,
+                    self.state.dark,
+                    self.thumbnail_dark,
+                    "SER",
+                    "ser"
+                );
+                create_file_input!(
+                    ui,
+                    "Flat",
+                    self.state,
+                    self.state.flat,
+                    self.thumbnail_flat,
+                    "SER",
+                    "ser"
+                );
                 create_file_input!(
                     ui,
                     "Dark Flat",
                     self.state,
                     self.state.darkflat,
+                    self.thumbnail_darkflat,
                     "SER",
                     "ser"
                 );
-                create_file_input!(ui, "Bias", self.state, self.state.bias, "SER", "ser");
+                create_file_input!(
+                    ui,
+                    "Bias",
+                    self.state,
+                    self.state.bias,
+                    self.thumbnail_bias,
+                    "SER",
+                    "ser"
+                );
                 create_file_input!(
                     ui,
                     "Hot Pixal Map",
                     self.state,
                     self.state.hot_pixel_map,
+                    self.thumbnail_light,
                     "TOML",
                     "toml"
                 );
@@ -600,6 +647,22 @@ impl SolHat {
 
         ui.label("Solar Disk Radius (Pixels):");
         ui.add(egui::DragValue::new(&mut self.state.solar_radius_pixels).speed(1.0));
+        ui.end_row();
+
+        ui.label("Crop Width (Pixels):");
+        ui.add(egui::DragValue::new(&mut self.state.crop_width).speed(1.0));
+        ui.end_row();
+
+        ui.label("Crop Height (Pixels):");
+        ui.add(egui::DragValue::new(&mut self.state.crop_height).speed(1.0));
+        ui.end_row();
+
+        ui.label("Horizontal Offset (Pixels):");
+        ui.add(egui::DragValue::new(&mut self.state.horiz_offset).speed(1.0));
+        ui.end_row();
+
+        ui.label("Vertical Offset (Pixels):");
+        ui.add(egui::DragValue::new(&mut self.state.vert_offset).speed(1.0));
         ui.end_row();
 
         ui.label("Filename Free Text:");

@@ -89,7 +89,10 @@ pub struct ApplicationState {
     pub ld_correction: bool,
     pub ld_coefficient: f64,
     pub solar_radius_pixels: usize,
-
+    pub crop_width: usize,
+    pub crop_height: usize,
+    pub vert_offset: i32,
+    pub horiz_offset: i32,
     pub window: WindowState,
 }
 
@@ -119,6 +122,10 @@ impl Default for ApplicationState {
             ld_correction: false,
             ld_coefficient: 0.56,
             solar_radius_pixels: 768,
+            crop_height: 0,
+            crop_width: 0,
+            vert_offset: 0,
+            horiz_offset: 0,
         }
     }
 }
@@ -135,8 +142,18 @@ impl ApplicationState {
             obs_latitude: self.obs_latitude,
             obs_longitude: self.obs_longitude,
             target: self.target,
-            crop_width: None,
-            crop_height: None,
+            crop_width: if self.crop_width == 0 {
+                None
+            } else {
+                Some(self.crop_width)
+            },
+            crop_height: if self.crop_height == 0 {
+                None
+            } else {
+                Some(self.crop_height)
+            },
+            vert_offset: self.vert_offset,
+            horiz_offset: self.horiz_offset,
             max_frames: Some(self.max_frames),
             min_sigma: Some(self.min_sigma),
             max_sigma: Some(self.max_sigma),
