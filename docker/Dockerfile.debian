@@ -3,7 +3,7 @@ FROM rust:1.73.0
 ARG SOLHATUI_VERSION=0.1.0
 ENV SOLHATUI_VERSION ${SOLHATUI_VERSION}
 
-RUN apt-get update && apt-get install -y curl
+RUN apt-get update && apt-get install -y curl libgtk-3-dev
 
 #RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
 #RUN echo 'source $HOME/.cargo/env' >> $HOME/.bashrc

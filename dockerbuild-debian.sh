@@ -14,7 +14,7 @@ if [ ! -d target/release ]; then
     mkdir -p target/release
 fi
 
-docker cp ${CONTAINER_ID}:/mars/target/debian/ target/release/
+docker cp ${CONTAINER_ID}:/build/target/debian/ target/release/
 
 docker rm -f ${CONTAINER_ID}  || true
 docker rmi -f ${DOCKER_IMAGE_NAME} || true
