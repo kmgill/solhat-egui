@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Version=0.1.0
+Name=SolHat
+Comment=Solar Image Stacking
+Categories=Graphics
+Exec=/usr/bin/solhat-egui
+Icon=/usr/share/icons/hicolor/48x48/apps/solhat.png
+Keywords=astrophotography;sun;moon;

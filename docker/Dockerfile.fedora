@@ -1,0 +1,24 @@
+FROM fedora:38
+
+ARG SOLHATUI_VERSION=0.1.0
+ENV SOLHATUI_VERSION ${SOLHATUI_VERSION}
+
+RUN dnf group install -y "Development Tools"
+RUN dnf install -y rpm-build 
+
+RUN bash -c "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"
+
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+RUN cargo install cargo-generate-rpm
+
+WORKDIR /build
+
+COPY . .
+RUN cargo build --release
+
+RUN cargo generate-rpm
+RUN ls -l target/generate-rpm/
+
+# RPM installation validation
+RUN rpm -ivh target/generate-rpm/solhat-egui-${SOLHATUI_VERSION}-1.x86_64.rpm

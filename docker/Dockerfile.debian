@@ -1,0 +1,23 @@
+FROM rust:1.73.0
+
+ARG SOLHATUI_VERSION=0.1.0
+ENV SOLHATUI_VERSION ${SOLHATUI_VERSION}
+
+RUN apt-get update && apt-get install -y curl
+
+#RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
+#RUN echo 'source $HOME/.cargo/env' >> $HOME/.bashrc
+#ENV PATH="/root/.cargo/bin:${PATH}"
+
+WORKDIR /build
+
+RUN cargo install cargo-deb
+COPY . .
+
+RUN cargo deb 
+
+RUN ls -l target/debian/
+
+# Validate installation package
+RUN apt install ./target/debian/solhat-egui_${SOLHATUI_VERSION}_amd64.deb 
+

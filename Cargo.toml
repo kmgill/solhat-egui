@@ -2,6 +2,8 @@
 name = "solhat-egui"
 version = "0.1.0"
 edition = "2021"
+license = "MIT" 
+description = "Application for processing and stacking raw solar and lunar imagery"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -30,4 +32,34 @@ env_logger = "0.10.0"
 rfd = "0.11"
 dirs = "5.0.0"
 charts = {git = "https://github.com/kmgill/rustplotlib.git"}
-solhat = {path = "../solhat"}
+solhat = {git = "https://github.com/kmgill/solhat.git"}
+# solhat = {path = "../solhat"}
+
+
+
+[package.metadata.deb]
+maintainer = "Kevin M. Gill <apoapsys@gmail.com>"
+copyright = "2023, Kevin M. Gill <apoapsys@gmail.com>"
+license-file = ["LICENSE", "2"]
+extended-description = "Application for processing and stacking raw solar and lunar imagery" 
+depends = "$auto"
+section = "science"
+priority = "optional"
+assets = [
+    ["target/release/solhat-egui", "/usr/bin/solhat-egui", "755"],
+    ["README.md", "/usr/share/doc/solhat/README", "644"],
+    ["assets/hicolor/48x48/apps/solhat.png", "/usr/share/icons/hicolor/48x48/apps/solhat.png","644"],
+    ["assets/hicolor/128x128/apps/solhat.png", "/usr/share/icons/hicolor/128x128/apps/solhat.png", "644"],
+    ["assets/hicolor/256x256/apps/solhat.png", "/usr/share/icons/hicolor/256x256/apps/solhat.png", "644"],
+    ["assets/solhat.desktop", "/usr/share/applications/solhat.desktop", "644"]
+ ]
+
+[package.metadata.generate-rpm]
+assets = [
+    { source = "target/release/solhat-egui", dest = "/usr/bin/solhat-egui", mode = "755"},
+    { source = "README.md", dest = "/usr/share/doc/solhat/README", mode ="644"},
+    { source = "assets/hicolor/48x48/apps/solhat.png", dest = "/usr/share/icons/hicolor/48x48/apps/solhat.png", mode ="644"},
+    { source = "assets/hicolor/128x128/apps/solhat.png", dest = "/usr/share/icons/hicolor/128x128/apps/solhat.png", mode ="644"},
+    { source = "assets/hicolor/256x256/apps/solhat.png", dest = "/usr/share/icons/hicolor/256x256/apps/solhat.png", mode ="644"},
+    { source = "assets/solhat.desktop", dest = "/usr/share/applications/solhat.desktop", mode ="644"},
+]
