@@ -1,5 +1,4 @@
 use anyhow::Result;
-use charts::{Chart, Color, LineSeriesView, MarkerType, ScaleLinear};
 use rayon::prelude::*;
 use sciimg::{max, min, quality};
 use solhat::calibrationframe::CalibrationImage;
@@ -27,11 +26,12 @@ pub struct AnalysisRange {
     max: f64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct AnalysisSeries {
-    sigma_list: Vec<f64>,
+    pub sigma_list: Vec<f64>,
 }
 
+#[allow(dead_code)]
 impl AnalysisSeries {
     pub fn sorted_list(&self) -> Vec<f64> {
         let mut sorted = self.sigma_list.clone();
@@ -163,86 +163,4 @@ where
         })
         .collect();
     Ok(frame_records)
-}
-
-// Based on https://github.com/askanium/rustplotlib/blob/master/examples/line_series_chart.rs
-pub fn create_chart(data: &AnalysisSeries, width: isize, height: isize) -> Result<String> {
-    let (top, right, bottom, left) = (0, 40, 50, 60);
-
-    let x = ScaleLinear::new()
-        .set_domain(vec![0_f32, data.sigma_list.len() as f32])
-        .set_range(vec![0, width - left - right]);
-
-    let rng = data.minmax();
-
-    let y = ScaleLinear::new()
-        .set_domain(vec![rng.min as f32, rng.max as f32])
-        .set_range(vec![height - top - bottom, 0]);
-
-    let line_data_1: Vec<(f32, f32)> = data
-        .sorted_list()
-        .iter()
-        .enumerate()
-        .map(|(i, s)| (i as f32, *s as f32))
-        .collect();
-
-    let line_data_2: Vec<(f32, f32)> = data
-        .sma(data.sigma_list.len() / 20)
-        .iter()
-        .enumerate()
-        .map(|(i, s)| (i as f32, *s as f32))
-        .collect();
-
-    let line_data_3: Vec<(f32, f32)> = data
-        .sigma_list
-        .iter()
-        .enumerate()
-        .map(|(i, s)| (i as f32, *s as f32))
-        .collect();
-
-    let line_view_1 = LineSeriesView::new()
-        .set_x_scale(&x)
-        .set_y_scale(&y)
-        .set_marker_type(MarkerType::X)
-        .set_label_visibility(false)
-        .set_marker_visibility(false)
-        .set_colors(Color::from_vec_of_hex_strings(vec!["#AAAAAA"]))
-        .load_data(&line_data_1)
-        .unwrap();
-
-    let line_view_2 = LineSeriesView::new()
-        .set_x_scale(&x)
-        .set_y_scale(&y)
-        .set_marker_type(MarkerType::X)
-        .set_label_visibility(false)
-        .set_marker_visibility(false)
-        .set_colors(Color::from_vec_of_hex_strings(vec!["#FF4700"]))
-        .load_data(&line_data_2)
-        .unwrap();
-
-    let line_view_3 = LineSeriesView::new()
-        .set_x_scale(&x)
-        .set_y_scale(&y)
-        .set_marker_type(MarkerType::X)
-        .set_label_visibility(false)
-        .set_marker_visibility(false)
-        .set_colors(Color::from_vec_of_hex_strings(vec!["#333333"]))
-        .load_data(&line_data_3)
-        .unwrap();
-
-    // Generate and save the chart.
-    let svg = Chart::new()
-        .set_width(width)
-        .set_height(height)
-        .set_margins(top, right, bottom, left)
-        .add_view(&line_view_3)
-        .add_view(&line_view_2)
-        .add_view(&line_view_1)
-        .add_axis_bottom(&x)
-        .add_axis_left(&y)
-        .add_left_axis_label("Sigma Quality")
-        .add_bottom_axis_label("Frame #")
-        .to_string()
-        .unwrap();
-    Ok(svg)
 }

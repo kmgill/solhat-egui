@@ -684,15 +684,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "charts"
-version = "0.3.0"
-source = "git+https://github.com/kmgill/rustplotlib.git#ac46454596810e306a351359eeb9068df8965913"
-dependencies = [
- "format_num",
- "svg",
-]
-
-[[package]]
 name = "chrono"
 version = "0.4.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1419,15 +1410,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a62bc1cf6f830c2ec14a513a9fb124d0a213a629668a4186f329db21fe045652"
 dependencies = [
  "percent-encoding",
-]
-
-[[package]]
-name = "format_num"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "14ac05eb8d2eb4ed1eeff847911deae077b0b53332465de9d6a26b0ea9961bc8"
-dependencies = [
- "regex",
 ]
 
 [[package]]
@@ -3280,7 +3262,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "charts",
  "chrono",
  "dirs",
  "eframe",
@@ -3363,12 +3344,6 @@ name = "sun"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dfc29238f46800dc0e29dbc0b3cab5e745dd40560220f759e30d298740781b59"
-
-[[package]]
-name = "svg"
-version = "0.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3685c82a045a6af0c488f0550b0f52b4c77d2a52b0ca8aba719f9d268fa96965"
 
 [[package]]
 name = "svgtypes"

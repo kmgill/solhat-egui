@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
 use analysis::sigma::AnalysisSeries;
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use eframe::egui;
 use egui::ColorImage;
 use egui::Pos2;
@@ -19,19 +19,15 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 
-use tokio::sync::mpsc;
-
 mod taskstatus;
 use taskstatus::*;
 
 mod cancel;
-use cancel::*;
 
 mod analysis;
 use analysis::*;
 
 mod process;
-use process::*;
 
 mod state;
 use state::*;
@@ -90,7 +86,7 @@ struct SolHat {
     thumbnail_bias: Option<egui::TextureHandle>,
 
     #[serde(skip_serializing, skip_deserializing)]
-    analysis_data: Option<AnalysisSeries>,
+    analysis_chart: analysis::AnalysisChart,
 }
 
 fn ser_frame_to_retained_image(ser_frame: &Image) -> ColorImage {
@@ -160,7 +156,7 @@ async fn main() -> Result<(), eframe::Error> {
             thumbnail_flat: None,
             thumbnail_darkflat: None,
             thumbnail_bias: None,
-            analysis_data: None,
+            analysis_chart: analysis::AnalysisChart::default(),
         })
     } else {
         options.centered = true;
@@ -180,7 +176,7 @@ impl Default for SolHat {
             thumbnail_flat: None,
             thumbnail_darkflat: None,
             thumbnail_bias: None,
-            analysis_data: None,
+            analysis_chart: analysis::AnalysisChart::default(),
         }
     }
 }
@@ -290,10 +286,10 @@ impl SolHat {
 
         if let Ok(mut results) = ANALYSIS_RESULTS.lock() {
             if results.series.is_some() {
-                self.analysis_data = results.series.clone();
+                self.analysis_chart.data = results.series.clone().unwrap();
                 results.series = None;
                 self.state.window.selected_preview_pane = PreviewPane::Analysis;
-            } else if self.analysis_data.is_none()
+            } else if self.analysis_chart.is_empty()
                 && self.state.window.selected_preview_pane == PreviewPane::Analysis
             {
                 self.state.window.selected_preview_pane = PreviewPane::Light;
@@ -427,7 +423,7 @@ impl SolHat {
                         PreviewPane::Bias,
                         "Bias",
                     );
-                    if self.analysis_data.is_some() {
+                    if !self.analysis_chart.is_empty() {
                         ui.selectable_value(
                             &mut self.state.window.selected_preview_pane,
                             PreviewPane::Analysis,
@@ -474,19 +470,7 @@ impl SolHat {
                         self.thumbnail_bias
                     ),
                     PreviewPane::Analysis => {
-                        if let Some(analysis_data) = &self.analysis_data {
-                            let chart =
-                                analysis::sigma::create_chart(analysis_data, 1024, 512).unwrap();
-
-                            let a = egui_extras::RetainedImage::from_svg_bytes_with_size(
-                                "testingrenderedsvg",
-                                chart.as_bytes(),
-                                egui_extras::image::FitTo::Original,
-                            )
-                            .unwrap();
-
-                            a.show(ui);
-                        }
+                        self.analysis_chart.ui(ui);
                     }
                 }
             });
@@ -494,16 +478,16 @@ impl SolHat {
 
         egui::TopBottomPanel::bottom("bottom_panel")
             .resizable(true)
-            .show(ctx, |ui| {
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    // TODO: Log viewer goes here
-                });
+            .show(ctx, |_ui| {
+                // egui::ScrollArea::vertical().show(ui, |ui| {
+                //     // TODO: Log viewer goes here
+                // });
             });
 
         ctx.request_repaint_after(Duration::from_millis(10));
     }
 
-    fn outputs_frame_contents(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+    fn outputs_frame_contents(&mut self, ui: &mut egui::Ui, _ctx: &egui::Context) {
         // Light Frames
         ui.label("Output Folder:");
         ui.horizontal(|ui| {
@@ -524,7 +508,7 @@ impl SolHat {
         }
     }
 
-    fn inputs_frame_contents(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+    fn inputs_frame_contents(&mut self, ui: &mut egui::Ui, _ctx: &egui::Context) {
         egui::Grid::new("inputs_3x3_lights")
             .num_columns(4)
             .spacing([40.0, 4.0])
@@ -588,7 +572,7 @@ impl SolHat {
         ui.end_row();
     }
 
-    fn observation_frame_contents(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+    fn observation_frame_contents(&mut self, ui: &mut egui::Ui, _ctx: &egui::Context) {
         ui.label("Observer Latitude:");
         ui.add(
             egui::DragValue::new(&mut self.state.obs_latitude)
@@ -616,7 +600,7 @@ impl SolHat {
         ui.end_row();
     }
 
-    fn options_frame_contents(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+    fn options_frame_contents(&mut self, ui: &mut egui::Ui, _ctx: &egui::Context) {
         let threshtest_icon = egui::include_image!("../assets/ellipse.svg");
         ui.label("Object Detection Threshold:");
         ui.add(egui::DragValue::new(&mut self.state.obj_detection_threshold).speed(10.0));
