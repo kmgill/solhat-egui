@@ -6,7 +6,7 @@ use eframe::egui;
 use egui::ColorImage;
 use egui::Pos2;
 use egui::Vec2;
-// use egui_extras::install_image_loaders;
+use egui_extras::install_image_loaders;
 use itertools::iproduct;
 use sciimg::prelude::Image;
 use serde::{Deserialize, Serialize};
@@ -17,6 +17,7 @@ use solhat::target::Target;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::time::Duration;
 
 use tokio::sync::mpsc;
 
@@ -283,7 +284,7 @@ impl SolHat {
     }
 
     fn on_update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        // install_image_loaders(ctx);
+        install_image_loaders(ctx);
         //ctx.set_pixels_per_point(1.0);
         // self.load_thumbnail(false);
 
@@ -291,6 +292,11 @@ impl SolHat {
             if results.series.is_some() {
                 self.analysis_data = results.series.clone();
                 results.series = None;
+                self.state.window.selected_preview_pane = PreviewPane::Analysis;
+            } else if self.analysis_data.is_none()
+                && self.state.window.selected_preview_pane == PreviewPane::Analysis
+            {
+                self.state.window.selected_preview_pane = PreviewPane::Light;
             }
         }
 
@@ -313,7 +319,7 @@ impl SolHat {
                         .spacing([40.0, 4.0])
                         .striped(true)
                         .show(ui, |ui| {
-                            self.inputs_frame_contents(ui);
+                            self.inputs_frame_contents(ui, ctx);
                         });
                     ui.separator();
 
@@ -323,7 +329,7 @@ impl SolHat {
                         .spacing([40.0, 4.0])
                         .striped(true)
                         .show(ui, |ui| {
-                            self.outputs_frame_contents(ui);
+                            self.outputs_frame_contents(ui, ctx);
                         });
                     ui.separator();
 
@@ -333,7 +339,7 @@ impl SolHat {
                         .spacing([40.0, 4.0])
                         .striped(true)
                         .show(ui, |ui| {
-                            self.observation_frame_contents(ui);
+                            self.observation_frame_contents(ui, ctx);
                         });
                     ui.separator();
 
@@ -343,7 +349,7 @@ impl SolHat {
                         .spacing([40.0, 4.0])
                         .striped(true)
                         .show(ui, |ui| {
-                            self.options_frame_contents(ui);
+                            self.options_frame_contents(ui, ctx);
                         });
                     ui.separator();
                 });
@@ -361,6 +367,7 @@ impl SolHat {
                             //ui.spinner();
                             if ui.button("Cancel").clicked() {
                                 cancel::set_request_cancel();
+                                ctx.request_repaint();
                                 // Do STUFF!
                             }
                         });
@@ -466,7 +473,21 @@ impl SolHat {
                         "thumbnail-bias",
                         self.thumbnail_bias
                     ),
-                    PreviewPane::Analysis => {}
+                    PreviewPane::Analysis => {
+                        if let Some(analysis_data) = &self.analysis_data {
+                            let chart =
+                                analysis::sigma::create_chart(analysis_data, 1024, 512).unwrap();
+
+                            let a = egui_extras::RetainedImage::from_svg_bytes_with_size(
+                                "testingrenderedsvg",
+                                chart.as_bytes(),
+                                egui_extras::image::FitTo::Original,
+                            )
+                            .unwrap();
+
+                            a.show(ui);
+                        }
+                    }
                 }
             });
         });
@@ -478,9 +499,11 @@ impl SolHat {
                     // TODO: Log viewer goes here
                 });
             });
+
+        ctx.request_repaint_after(Duration::from_millis(10));
     }
 
-    fn outputs_frame_contents(&mut self, ui: &mut egui::Ui) {
+    fn outputs_frame_contents(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         // Light Frames
         ui.label("Output Folder:");
         ui.horizontal(|ui| {
@@ -501,7 +524,7 @@ impl SolHat {
         }
     }
 
-    fn inputs_frame_contents(&mut self, ui: &mut egui::Ui) {
+    fn inputs_frame_contents(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         egui::Grid::new("inputs_3x3_lights")
             .num_columns(4)
             .spacing([40.0, 4.0])
@@ -565,7 +588,7 @@ impl SolHat {
         ui.end_row();
     }
 
-    fn observation_frame_contents(&mut self, ui: &mut egui::Ui) {
+    fn observation_frame_contents(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         ui.label("Observer Latitude:");
         ui.add(
             egui::DragValue::new(&mut self.state.obs_latitude)
@@ -593,18 +616,26 @@ impl SolHat {
         ui.end_row();
     }
 
-    fn options_frame_contents(&mut self, ui: &mut egui::Ui) {
+    fn options_frame_contents(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        let threshtest_icon = egui::include_image!("../assets/ellipse.svg");
         ui.label("Object Detection Threshold:");
         ui.add(egui::DragValue::new(&mut self.state.obj_detection_threshold).speed(10.0));
-        if ui.add(egui::Button::new("Test")).clicked() {
+        if ui
+            .add(egui::Button::image_and_text(threshtest_icon, "Test"))
+            .clicked()
+        {
             self.threshold_test(&ui);
             // Do stuff
         }
         ui.end_row();
 
+        let analysis_icon = egui::include_image!("../assets/chart.svg");
         ui.label("Analysis Window Size:");
         ui.add(egui::DragValue::new(&mut self.state.analysis_window_size).speed(1.0));
-        if ui.add(egui::Button::new("Run Analysis")).clicked() {
+        if ui
+            .add(egui::Button::image_and_text(analysis_icon, "Run Analysis"))
+            .clicked()
+        {
             // Do stuff
             self.run_analysis();
         }
