@@ -378,6 +378,14 @@ impl SolHat {
                         });
                     }
                 }
+
+                ui.separator();
+
+                ui.horizontal_wrapped(|ui| {
+                    egui::widgets::global_dark_light_mode_switch(ui);
+                    ui.separator();
+                    ui.hyperlink("https://github.com/kmgill/solhat");
+                });
             });
 
         egui::CentralPanel::default().show(ctx, |ui| {
