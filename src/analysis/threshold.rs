@@ -12,7 +12,7 @@ use solhat::threshtest::compute_rgb_threshtest_image;
 pub fn run_thresh_test(params: &ProcessParameters) -> Result<Image> {
     set_task_status("Processing Threshold Test", 2, 1);
     let context = ProcessContext::create_with_calibration_frames(
-        &params,
+        params,
         CalibrationImage::new_empty(),
         CalibrationImage::new_empty(),
         CalibrationImage::new_empty(),

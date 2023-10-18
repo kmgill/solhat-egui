@@ -3,21 +3,18 @@
 use analysis::sigma::AnalysisSeries;
 use anyhow::Result;
 use eframe::egui;
-use egui::ColorImage;
 use egui::Pos2;
 use egui::Vec2;
 use egui_extras::install_image_loaders;
-use itertools::iproduct;
-use sciimg::prelude::Image;
 use serde::{Deserialize, Serialize};
 use solhat::drizzle::Scale;
-use solhat::ser::SerFile;
-use solhat::ser::SerFrame;
 use solhat::target::Target;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
+
+mod preview;
 
 mod taskstatus;
 use taskstatus::*;
@@ -66,53 +63,27 @@ pub(crate) fn load_icon() -> eframe::IconData {
     }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Default)]
 struct SolHat {
     state: state::ApplicationState,
 
     #[serde(skip_serializing, skip_deserializing)]
-    thumbnail_light: Option<egui::TextureHandle>,
+    preview_light: preview::SerPreviewPane,
 
     #[serde(skip_serializing, skip_deserializing)]
-    thumbnail_dark: Option<egui::TextureHandle>,
+    preview_dark: preview::SerPreviewPane,
 
     #[serde(skip_serializing, skip_deserializing)]
-    thumbnail_flat: Option<egui::TextureHandle>,
+    preview_flat: preview::SerPreviewPane,
 
     #[serde(skip_serializing, skip_deserializing)]
-    thumbnail_darkflat: Option<egui::TextureHandle>,
+    preview_darkflat: preview::SerPreviewPane,
 
     #[serde(skip_serializing, skip_deserializing)]
-    thumbnail_bias: Option<egui::TextureHandle>,
+    preview_bias: preview::SerPreviewPane,
 
     #[serde(skip_serializing, skip_deserializing)]
     analysis_chart: analysis::AnalysisChart,
-}
-
-fn ser_frame_to_retained_image(ser_frame: &Image) -> ColorImage {
-    let mut copied = ser_frame.clone();
-    let size: [usize; 2] = [copied.width as _, copied.height as _];
-    copied.normalize_to_8bit();
-    let mut rgb: Vec<u8> = Vec::with_capacity(copied.height * copied.width * 3);
-    iproduct!(0..copied.height, 0..copied.width).for_each(|(y, x)| {
-        let (r, g, b) = if copied.num_bands() == 1 {
-            (
-                copied.get_band(0).get(x, y),
-                copied.get_band(0).get(x, y),
-                copied.get_band(0).get(x, y),
-            )
-        } else {
-            (
-                copied.get_band(0).get(x, y),
-                copied.get_band(1).get(x, y),
-                copied.get_band(2).get(x, y),
-            )
-        };
-        rgb.push(r as u8);
-        rgb.push(g as u8);
-        rgb.push(b as u8);
-    });
-    ColorImage::from_rgb(size, &rgb)
 }
 
 #[tokio::main]
@@ -151,12 +122,7 @@ async fn main() -> Result<(), eframe::Error> {
         println!("Creating application with previous settings");
         Box::new(SolHat {
             state: app_state,
-            thumbnail_light: None,
-            thumbnail_dark: None,
-            thumbnail_flat: None,
-            thumbnail_darkflat: None,
-            thumbnail_bias: None,
-            analysis_chart: analysis::AnalysisChart::default(),
+            ..Default::default()
         })
     } else {
         options.centered = true;
@@ -165,20 +131,6 @@ async fn main() -> Result<(), eframe::Error> {
     };
 
     eframe::run_native("SolHat", options, Box::new(|_cc| solhat))
-}
-
-impl Default for SolHat {
-    fn default() -> Self {
-        Self {
-            state: ApplicationState::default(),
-            thumbnail_light: None,
-            thumbnail_dark: None,
-            thumbnail_flat: None,
-            thumbnail_darkflat: None,
-            thumbnail_bias: None,
-            analysis_chart: analysis::AnalysisChart::default(),
-        }
-    }
 }
 
 impl eframe::App for SolHat {
@@ -191,7 +143,7 @@ impl eframe::App for SolHat {
         self.state.enforce_value_bounds();
         self.state.window.update_from_window_info(ctx, frame);
 
-        self.on_update(ctx, frame);
+        self.on_update(ctx, frame).expect("Failed to update UI");
     }
 }
 
@@ -205,7 +157,7 @@ fn truncate_to(s: &str, max_len: usize) -> String {
 }
 
 macro_rules! create_file_input {
-    ($ui:expr, $name:expr, $state:expr, $state_property:expr, $thumb_property:expr, $open_type_name:expr, $open_type_ext:expr) => {{
+    ($ui:expr, $name:expr, $state:expr, $state_property:expr, $preview_property:expr, $open_type_name:expr, $open_type_ext:expr) => {{
         $ui.label(&format!("{}:", $name));
         $ui.monospace(truncate_to(
             &$state_property.clone().unwrap_or("".to_owned()),
@@ -219,67 +171,45 @@ macro_rules! create_file_input {
                 .pick_file()
             {
                 $state_property = Some(path.display().to_string());
-                $thumb_property = None;
+                $preview_property
+                    .load_ser($ui.ctx(), &path.display().to_string())
+                    .expect("Failed to load ser file");
+
+                if let Ok(tex_size) = $preview_property.size() {
+                    if $state.crop_width == 0 {
+                        $state.crop_width = tex_size[0];
+                    }
+                    if $state.crop_height == 0 {
+                        $state.crop_height = tex_size[1];
+                    }
+                }
+
                 $state.window.update_last_opened_folder(&path);
             }
         }
         if $ui.button("Clear").clicked() {
-            $thumb_property = None;
+            $preview_property.unload_ser();
             $state_property = None;
         }
         $ui.end_row();
     }};
 }
 
-macro_rules! show_ser_thumbnail {
-    ($ui:expr, $state:expr, $path_option:expr, $texture_name:expr, $state_property:expr) => {{
-        if let Some(ser_path) = &$path_option {
-            if $state_property.is_none() {
-                let texture = SolHat::load_ser_texture(&$ui, $texture_name, &ser_path);
-                if $state.crop_width == 0 {
-                    $state.crop_width = texture.size()[0];
-                }
-                if $state.crop_height == 0 {
-                    $state.crop_height = texture.size()[1];
-                }
-                $state_property = Some(texture);
-            }
-
-            if let Some(texture) = &$state_property {
-                $ui.add(egui::Image::from_texture(texture).shrink_to_fit());
-            }
-        } else {
-            $state_property = None;
-        }
-    }};
-}
-
 impl SolHat {
-    fn load_ser_texture(
-        ui: &egui::Ui,
-        texture_name: &str,
-        texture_path: &str,
-    ) -> egui::TextureHandle {
-        let ser_file = SerFile::load_ser(texture_path).unwrap();
-        let first_image: SerFrame = ser_file.get_frame(0).unwrap();
-        let cimage = ser_frame_to_retained_image(&first_image.buffer);
-        ui.ctx()
-            .load_texture(texture_name, cimage, Default::default())
-    }
-
-    fn threshold_test(&mut self, ui: &egui::Ui) {
-        if self.state.light.is_some() {
-            let result = analysis::threshold::run_thresh_test(&self.state.to_parameters()).unwrap();
-            let cimage = ser_frame_to_retained_image(&result);
-            let texture = ui
-                .ctx()
-                .load_texture("threshtest-texture", cimage, Default::default());
-
-            self.thumbnail_light = Some(texture);
+    fn ensure_texture_loaded(
+        ctx: &egui::Context,
+        preview_pane: &mut preview::SerPreviewPane,
+        ser_path: &Option<String>,
+    ) -> Result<()> {
+        if preview_pane.is_empty() && ser_path.is_some() {
+            if let Some(ser_path) = &ser_path {
+                preview_pane.load_ser(ctx, ser_path)?;
+            }
         }
+        Ok(())
     }
 
-    fn on_update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+    fn on_update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) -> Result<()> {
         install_image_loaders(ctx);
         //ctx.set_pixels_per_point(1.0);
         // self.load_thumbnail(false);
@@ -295,6 +225,12 @@ impl SolHat {
                 self.state.window.selected_preview_pane = PreviewPane::Light;
             }
         }
+
+        SolHat::ensure_texture_loaded(ctx, &mut self.preview_light, &self.state.light)?;
+        SolHat::ensure_texture_loaded(ctx, &mut self.preview_dark, &self.state.dark)?;
+        SolHat::ensure_texture_loaded(ctx, &mut self.preview_flat, &self.state.flat)?;
+        SolHat::ensure_texture_loaded(ctx, &mut self.preview_darkflat, &self.state.darkflat)?;
+        SolHat::ensure_texture_loaded(ctx, &mut self.preview_bias, &self.state.bias)?;
 
         self.state.enforce_value_bounds();
         self.state.window.update_from_window_info(ctx, frame);
@@ -434,41 +370,11 @@ impl SolHat {
                 ui.separator();
 
                 match self.state.window.selected_preview_pane {
-                    PreviewPane::Light => show_ser_thumbnail!(
-                        ui,
-                        self.state,
-                        self.state.light,
-                        "thumbnail-light",
-                        self.thumbnail_light
-                    ),
-                    PreviewPane::Dark => show_ser_thumbnail!(
-                        ui,
-                        self.state,
-                        self.state.dark,
-                        "thumbnail-dark",
-                        self.thumbnail_dark
-                    ),
-                    PreviewPane::Flat => show_ser_thumbnail!(
-                        ui,
-                        self.state,
-                        self.state.flat,
-                        "thumbnail-flat",
-                        self.thumbnail_flat
-                    ),
-                    PreviewPane::DarkFlat => show_ser_thumbnail!(
-                        ui,
-                        self.state,
-                        self.state.darkflat,
-                        "thumbnail-darkflat",
-                        self.thumbnail_darkflat
-                    ),
-                    PreviewPane::Bias => show_ser_thumbnail!(
-                        ui,
-                        self.state,
-                        self.state.bias,
-                        "thumbnail-bias",
-                        self.thumbnail_bias
-                    ),
+                    PreviewPane::Light => self.preview_light.ui(ui),
+                    PreviewPane::Dark => self.preview_dark.ui(ui),
+                    PreviewPane::Flat => self.preview_flat.ui(ui),
+                    PreviewPane::DarkFlat => self.preview_darkflat.ui(ui),
+                    PreviewPane::Bias => self.preview_bias.ui(ui),
                     PreviewPane::Analysis => {
                         self.analysis_chart.ui(ui);
                     }
@@ -485,6 +391,7 @@ impl SolHat {
             });
 
         ctx.request_repaint_after(Duration::from_millis(10));
+        Ok(())
     }
 
     fn outputs_frame_contents(&mut self, ui: &mut egui::Ui, _ctx: &egui::Context) {
@@ -519,7 +426,7 @@ impl SolHat {
                     "Light",
                     self.state,
                     self.state.light,
-                    self.thumbnail_light,
+                    self.preview_light,
                     "SER",
                     "ser"
                 );
@@ -528,7 +435,7 @@ impl SolHat {
                     "Dark",
                     self.state,
                     self.state.dark,
-                    self.thumbnail_dark,
+                    self.preview_dark,
                     "SER",
                     "ser"
                 );
@@ -537,7 +444,7 @@ impl SolHat {
                     "Flat",
                     self.state,
                     self.state.flat,
-                    self.thumbnail_flat,
+                    self.preview_flat,
                     "SER",
                     "ser"
                 );
@@ -546,7 +453,7 @@ impl SolHat {
                     "Dark Flat",
                     self.state,
                     self.state.darkflat,
-                    self.thumbnail_darkflat,
+                    self.preview_darkflat,
                     "SER",
                     "ser"
                 );
@@ -555,7 +462,7 @@ impl SolHat {
                     "Bias",
                     self.state,
                     self.state.bias,
-                    self.thumbnail_bias,
+                    self.preview_bias,
                     "SER",
                     "ser"
                 );
@@ -564,7 +471,7 @@ impl SolHat {
                     "Hot Pixal Map",
                     self.state,
                     self.state.hot_pixel_map,
-                    self.thumbnail_light,
+                    self.preview_light,
                     "TOML",
                     "toml"
                 );
@@ -604,26 +511,33 @@ impl SolHat {
         let threshtest_icon = egui::include_image!("../assets/ellipse.svg");
         ui.label("Object Detection Threshold:");
         ui.add(egui::DragValue::new(&mut self.state.obj_detection_threshold).speed(10.0));
-        if ui
-            .add(egui::Button::image_and_text(threshtest_icon, "Test"))
-            .clicked()
-        {
-            self.threshold_test(&ui);
-            self.state.window.selected_preview_pane = PreviewPane::Light;
-            // Do stuff
-        }
+
+        ui.add_enabled_ui(!self.preview_light.is_empty(), |ui| {
+            if ui
+                .add(egui::Button::image_and_text(threshtest_icon, "Test"))
+                .clicked()
+            {
+                self.preview_light
+                    .threshold_test(ui, &self.state)
+                    .expect("Failed threshold test");
+                self.state.window.selected_preview_pane = PreviewPane::Light;
+                // Do stuff
+            }
+        });
         ui.end_row();
 
         let analysis_icon = egui::include_image!("../assets/chart.svg");
         ui.label("Analysis Window Size:");
         ui.add(egui::DragValue::new(&mut self.state.analysis_window_size).speed(1.0));
-        if ui
-            .add(egui::Button::image_and_text(analysis_icon, "Run Analysis"))
-            .clicked()
-        {
-            // Do stuff
-            self.run_analysis();
-        }
+        ui.add_enabled_ui(!self.preview_light.is_empty(), |ui| {
+            if ui
+                .add(egui::Button::image_and_text(analysis_icon, "Run Analysis"))
+                .clicked()
+            {
+                // Do stuff
+                self.run_analysis();
+            }
+        });
         ui.end_row();
 
         ui.label("Drizzle:");

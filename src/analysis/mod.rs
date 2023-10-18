@@ -30,7 +30,7 @@ impl AnalysisChart {
     #[allow(dead_code)]
     pub fn new(data: sigma::AnalysisSeries) -> Self {
         AnalysisChart {
-            data: data,
+            data,
             sma_period: 5,
             show_axes: true,
             show_grid: true,
