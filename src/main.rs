@@ -171,16 +171,19 @@ macro_rules! create_file_input {
                 .pick_file()
             {
                 $state_property = Some(path.display().to_string());
-                $preview_property
-                    .load_ser($ui.ctx(), &path.display().to_string())
-                    .expect("Failed to load ser file");
 
-                if let Ok(tex_size) = $preview_property.size() {
-                    if $state.crop_width == 0 {
-                        $state.crop_width = tex_size[0];
-                    }
-                    if $state.crop_height == 0 {
-                        $state.crop_height = tex_size[1];
+                if $open_type_name == "SER" {
+                    $preview_property
+                        .load_ser($ui.ctx(), &path.display().to_string())
+                        .expect("Failed to load ser file");
+
+                    if let Ok(tex_size) = $preview_property.size() {
+                        if $state.crop_width == 0 {
+                            $state.crop_width = tex_size[0];
+                        }
+                        if $state.crop_height == 0 {
+                            $state.crop_height = tex_size[1];
+                        }
                     }
                 }
 
