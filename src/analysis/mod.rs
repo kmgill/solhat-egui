@@ -126,8 +126,8 @@ impl AnalysisChart {
             .show_axes(*show_axes)
             .show_grid(*show_grid);
         plot.show(ui, |plot_ui| {
-            plot_ui.line(self.sorted_data_line());
             plot_ui.line(self.raw_data_line());
+            plot_ui.line(self.sorted_data_line());
             plot_ui.line(self.sma_line());
         })
         .response

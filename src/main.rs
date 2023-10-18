@@ -609,6 +609,7 @@ impl SolHat {
             .clicked()
         {
             self.threshold_test(&ui);
+            self.state.window.selected_preview_pane = PreviewPane::Light;
             // Do stuff
         }
         ui.end_row();
