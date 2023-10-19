@@ -9,10 +9,86 @@ use solhat::ser::SerFrame;
 use crate::analysis;
 use crate::state::ApplicationState;
 
+use egui_plot::{Legend, Line, LineStyle, Plot, PlotPoints};
+use epaint::Color32;
+
+#[derive(Default, Debug, Copy, Clone)]
+struct Bin {
+    count: u32,
+}
+
+#[derive(Default, Debug, Clone)]
+struct Histogram {
+    num_bins: usize,
+    min_value: f32,
+    max_value: f32,
+    bins: Vec<Bin>,
+}
+
+impl Histogram {
+    pub fn new(num_bins: usize, min_value: f32, max_value: f32) -> Self {
+        Histogram {
+            num_bins,
+            min_value,
+            max_value,
+            bins: (0..num_bins).into_iter().map(|_| Bin::default()).collect(),
+        }
+    }
+
+    fn value_to_bin(&self, v: f32) -> usize {
+        (self.num_bins as f32 * ((v - self.min_value) / (self.max_value - self.min_value))).floor()
+            as usize
+    }
+
+    pub fn compute_from_image(&mut self, img: &Image) {
+        iproduct!(0..img.height, 0..img.width).for_each(|(y, x)| {
+            let v = img.get_band(0).get(x, y);
+            let bin_no = self.value_to_bin(v);
+            self.bins[bin_no].count += 1;
+        });
+    }
+
+    /*
+    fn sma_line(&self) -> Line {
+        let sma_list_points: PlotPoints = self
+            .data
+            .sma(self.sma_period)
+            .into_iter()
+            .enumerate()
+            .map(|(i, v)| [i as f64, v])
+            .collect();
+
+        Line::new(sma_list_points)
+            .color(Color32::LIGHT_BLUE)
+            .style(LineStyle::Solid)
+            .width(2.0)
+            .name(format!("SMA({})", self.sma_period))
+    }
+
+     */
+
+    pub fn to_line(&self) -> Line {
+        let points: PlotPoints = self
+            .bins
+            .clone()
+            .into_iter()
+            .enumerate()
+            .map(|(i, b)| [i as f64, b.count as f64])
+            .collect();
+
+        Line::new(points)
+            .color(Color32::LIGHT_BLUE)
+            .style(LineStyle::Solid)
+            .fill(0.0)
+            .width(2.0)
+    }
+}
+
 pub struct SerPreviewPane {
     texture_handle: Option<egui::TextureHandle>,
     texture_name: String,
     ser_file: Option<SerFile>,
+    histogram: Option<Histogram>,
 }
 
 impl Default for SerPreviewPane {
@@ -21,6 +97,7 @@ impl Default for SerPreviewPane {
             texture_handle: None,
             ser_file: None,
             texture_name: SerPreviewPane::gen_random_texture_name(),
+            histogram: None,
         }
     }
 }
@@ -78,13 +155,20 @@ impl SerPreviewPane {
     pub fn load_ser(&mut self, ctx: &egui::Context, texture_path: &str) -> Result<()> {
         let ser_file = SerFile::load_ser(&texture_path)?;
         self.texture_handle = Some(self.load_ser_texture(ctx, &ser_file)?);
+
+        let mut histogram = Histogram::new(500, 0.0, 65536.0);
+        histogram.compute_from_image(&ser_file.get_frame(0)?.buffer);
+
         self.ser_file = Some(ser_file);
+        self.histogram = Some(histogram);
+
         Ok(())
     }
 
     pub fn unload_ser(&mut self) {
         self.texture_handle = None;
         self.ser_file = None;
+        self.histogram = None;
     }
 
     pub fn threshold_test(&mut self, ui: &egui::Ui, state: &ApplicationState) -> Result<()> {
@@ -111,44 +195,60 @@ impl SerPreviewPane {
 
     fn metadata_ui(&mut self, ui: &mut Ui) {
         if let Some(ser_file) = &self.ser_file {
-            ui.vertical_centered(|ui| {
-                ui.horizontal(|ui| {
-                    ui.label("File:");
-                    ui.label(format!("{}", ser_file.source_file));
-                });
-                egui::Grid::new("metadata")
-                    .num_columns(2)
-                    .spacing([40.0, 4.0])
-                    .striped(true)
-                    .show(ui, |ui| {
-                        ui.label("Image Width:");
-                        ui.label(format!("{}", ser_file.image_width));
-
-                        ui.label("Image Height:");
-                        ui.label(format!("{}", ser_file.image_height));
-                        ui.end_row();
-
-                        ui.label("Pixel Depth:");
-                        ui.label(format!("{} bits", ser_file.pixel_depth));
-
-                        ui.label("Frame Count:");
-                        ui.label(format!("{}", ser_file.frame_count));
-                        ui.end_row();
-
-                        ui.label("Observer:");
-                        ui.label(&ser_file.observer);
-
-                        ui.label("Instrument:");
-                        ui.label(&ser_file.instrument);
-                        ui.end_row();
-
-                        ui.label("Telescope:");
-                        ui.label(format!("{}", ser_file.telescope));
-
-                        ui.label("Time of Observation (UTC):");
-                        ui.label(format!("{:?}", ser_file.date_time_utc.to_chrono_utc()));
-                        ui.end_row();
+            ui.horizontal(|ui| {
+                ui.vertical_centered(|ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("File:");
+                        ui.label(format!("{}", ser_file.source_file));
                     });
+                    egui::Grid::new("metadata")
+                        .num_columns(2)
+                        .spacing([40.0, 4.0])
+                        .striped(true)
+                        .show(ui, |ui| {
+                            ui.label("Image Width:");
+                            ui.label(format!("{}", ser_file.image_width));
+
+                            ui.label("Image Height:");
+                            ui.label(format!("{}", ser_file.image_height));
+                            ui.end_row();
+
+                            ui.label("Pixel Depth:");
+                            ui.label(format!("{} bits", ser_file.pixel_depth));
+
+                            ui.label("Frame Count:");
+                            ui.label(format!("{}", ser_file.frame_count));
+                            ui.end_row();
+
+                            ui.label("Observer:");
+                            ui.label(&ser_file.observer);
+
+                            ui.label("Instrument:");
+                            ui.label(&ser_file.instrument);
+                            ui.end_row();
+
+                            ui.label("Telescope:");
+                            ui.label(format!("{}", ser_file.telescope));
+
+                            ui.label("Time of Observation (UTC):");
+                            ui.label(format!("{:?}", ser_file.date_time_utc.to_chrono_utc()));
+                            ui.end_row();
+                        });
+                });
+                let plot = Plot::new("histogram")
+                    .legend(Legend::default())
+                    .y_axis_width(4)
+                    .show_axes(false)
+                    .allow_scroll(false)
+                    .allow_boxed_zoom(false)
+                    .allow_drag(false)
+                    .allow_zoom(false)
+                    .show_grid(true);
+                plot.show(ui, |plot_ui| {
+                    if let Some(histogram) = &self.histogram {
+                        plot_ui.line(histogram.to_line());
+                    }
+                });
             });
         }
     }
