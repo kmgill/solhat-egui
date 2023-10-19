@@ -48,25 +48,6 @@ impl Histogram {
         });
     }
 
-    /*
-    fn sma_line(&self) -> Line {
-        let sma_list_points: PlotPoints = self
-            .data
-            .sma(self.sma_period)
-            .into_iter()
-            .enumerate()
-            .map(|(i, v)| [i as f64, v])
-            .collect();
-
-        Line::new(sma_list_points)
-            .color(Color32::LIGHT_BLUE)
-            .style(LineStyle::Solid)
-            .width(2.0)
-            .name(format!("SMA({})", self.sma_period))
-    }
-
-     */
-
     pub fn to_line(&self) -> Line {
         let points: PlotPoints = self
             .bins
@@ -89,6 +70,7 @@ pub struct SerPreviewPane {
     texture_name: String,
     ser_file: Option<SerFile>,
     histogram: Option<Histogram>,
+    show_frame_no: usize,
 }
 
 impl Default for SerPreviewPane {
@@ -98,6 +80,7 @@ impl Default for SerPreviewPane {
             ser_file: None,
             texture_name: SerPreviewPane::gen_random_texture_name(),
             histogram: None,
+            show_frame_no: 0,
         }
     }
 }
@@ -142,25 +125,35 @@ impl SerPreviewPane {
         ColorImage::from_rgb(size, &rgb)
     }
 
-    fn load_ser_texture(
-        &self,
-        ctx: &egui::Context,
-        ser_file: &SerFile,
-    ) -> Result<egui::TextureHandle> {
-        let first_image: SerFrame = ser_file.get_frame(0)?;
-        let cimage = SerPreviewPane::ser_frame_to_retained_image(&first_image.buffer);
-        Ok(ctx.load_texture(&self.texture_name, cimage, Default::default()))
+    fn update_texture(&mut self, ctx: &egui::Context) -> Result<()> {
+        if let Some(ser_file) = &self.ser_file {
+            let first_image: SerFrame = ser_file.get_frame(self.show_frame_no)?;
+            let cimage = SerPreviewPane::ser_frame_to_retained_image(&first_image.buffer);
+            self.texture_handle =
+                Some(ctx.load_texture(&self.texture_name, cimage, Default::default()));
+            Ok(())
+        } else {
+            Err(anyhow!("No ser file loaded"))
+        }
+    }
+
+    fn update_histogram(&mut self) -> Result<()> {
+        if let Some(ser_file) = &self.ser_file {
+            let mut histogram = Histogram::new(500, 0.0, 65536.0);
+            histogram.compute_from_image(&ser_file.get_frame(self.show_frame_no)?.buffer);
+
+            self.histogram = Some(histogram);
+            Ok(())
+        } else {
+            Err(anyhow!("No ser file loaded"))
+        }
     }
 
     pub fn load_ser(&mut self, ctx: &egui::Context, texture_path: &str) -> Result<()> {
-        let ser_file = SerFile::load_ser(&texture_path)?;
-        self.texture_handle = Some(self.load_ser_texture(ctx, &ser_file)?);
+        self.ser_file = Some(SerFile::load_ser(&texture_path)?);
 
-        let mut histogram = Histogram::new(500, 0.0, 65536.0);
-        histogram.compute_from_image(&ser_file.get_frame(0)?.buffer);
-
-        self.ser_file = Some(ser_file);
-        self.histogram = Some(histogram);
+        self.update_texture(ctx)?;
+        self.update_histogram()?;
 
         Ok(())
     }
@@ -252,8 +245,29 @@ impl SerPreviewPane {
             });
         }
     }
-    fn options_ui(&mut self, _ui: &mut Ui) {
+    fn options_ui(&mut self, ui: &mut Ui) -> Result<()> {
+        let Self {
+            texture_handle: _,
+            texture_name: _,
+            ser_file,
+            histogram: _,
+            show_frame_no,
+        } = self;
 
+        if let Some(ser_file) = &ser_file {
+            if ui
+                .add(
+                    egui::Slider::new(show_frame_no, 0..=(ser_file.frame_count - 1))
+                        .prefix("Frame: "),
+                )
+                .changed()
+            {
+                self.update_histogram()?;
+                self.update_texture(ui.ctx())?;
+            };
+        }
+
+        Ok(())
         // Add some options
     }
 }
@@ -261,7 +275,6 @@ impl SerPreviewPane {
 impl SerPreviewPane {
     pub fn ui(&mut self, ui: &mut Ui) {
         self.metadata_ui(ui);
-        self.options_ui(ui);
 
         if let Some(texture_handle) = &self.texture_handle {
             ui.add(egui::Image::from_texture(texture_handle).shrink_to_fit());
@@ -272,5 +285,7 @@ impl SerPreviewPane {
                 });
             });
         }
+
+        self.options_ui(ui).unwrap();
     }
 }
