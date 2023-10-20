@@ -71,6 +71,7 @@ pub struct SerPreviewPane {
     ser_file: Option<SerFile>,
     histogram: Option<Histogram>,
     show_frame_no: usize,
+    animate: bool,
 }
 
 impl Default for SerPreviewPane {
@@ -81,6 +82,7 @@ impl Default for SerPreviewPane {
             texture_name: SerPreviewPane::gen_random_texture_name(),
             histogram: None,
             show_frame_no: 0,
+            animate: false,
         }
     }
 }
@@ -139,7 +141,7 @@ impl SerPreviewPane {
 
     fn update_histogram(&mut self) -> Result<()> {
         if let Some(ser_file) = &self.ser_file {
-            let mut histogram = Histogram::new(500, 0.0, 65536.0);
+            let mut histogram = Histogram::new(1500, 0.0, 65536.0);
             histogram.compute_from_image(&ser_file.get_frame(self.show_frame_no)?.buffer);
 
             self.histogram = Some(histogram);
@@ -246,15 +248,55 @@ impl SerPreviewPane {
         }
     }
     fn options_ui(&mut self, ui: &mut Ui) -> Result<()> {
+        // This is not a very efficient video viewer. Indeed, it's not written to be any good, just enough
+        // to preview the frames in the file.
+        if self.animate {
+            self.show_frame_no += 1;
+            self.update_histogram().unwrap();
+            self.update_texture(ui.ctx()).unwrap();
+        }
+
         let Self {
             texture_handle: _,
             texture_name: _,
             ser_file,
             histogram: _,
             show_frame_no,
+            animate,
         } = self;
 
         if let Some(ser_file) = &ser_file {
+            ui.horizontal(|ui| {
+                if ui.button("<").clicked() {
+                    if *show_frame_no > 0 {
+                        *show_frame_no -= 1;
+                    } else {
+                        *show_frame_no = ser_file.frame_count - 1
+                    }
+                }
+
+                if *animate {
+                    if ui.button("⏸").clicked() {
+                        *animate = false;
+                    }
+                } else {
+                    if ui.button("⏵").clicked() {
+                        *animate = true;
+                    }
+                }
+
+                if ui.button("⏹").clicked() {
+                    *animate = false;
+                    *show_frame_no = 0;
+                }
+                if ui.button(">").clicked() {
+                    if *show_frame_no < ser_file.frame_count - 1 {
+                        *show_frame_no += 1;
+                    } else {
+                        *show_frame_no = 0;
+                    }
+                }
+            });
             if ui
                 .add(
                     egui::Slider::new(show_frame_no, 0..=(ser_file.frame_count - 1))
@@ -262,8 +304,8 @@ impl SerPreviewPane {
                 )
                 .changed()
             {
-                self.update_histogram()?;
-                self.update_texture(ui.ctx())?;
+                self.update_histogram().unwrap();
+                self.update_texture(ui.ctx()).unwrap();
             };
         }
 
