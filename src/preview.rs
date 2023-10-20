@@ -248,13 +248,8 @@ impl SerPreviewPane {
         }
     }
     fn options_ui(&mut self, ui: &mut Ui) -> Result<()> {
-        // This is not a very efficient video viewer. Indeed, it's not written to be any good, just enough
-        // to preview the frames in the file.
-        if self.animate {
-            self.show_frame_no += 1;
-            self.update_histogram().unwrap();
-            self.update_texture(ui.ctx()).unwrap();
-        }
+        self.update_histogram().unwrap();
+        self.update_texture(ui.ctx()).unwrap();
 
         let Self {
             texture_handle: _,
@@ -266,6 +261,15 @@ impl SerPreviewPane {
         } = self;
 
         if let Some(ser_file) = &ser_file {
+            // This is not a very efficient video viewer. Indeed, it's not written to be any good, just enough
+            // to preview the frames in the file.
+            if *animate {
+                *show_frame_no += 1;
+                if *show_frame_no == ser_file.frame_count {
+                    *show_frame_no = 0;
+                }
+            }
+
             ui.horizontal(|ui| {
                 if ui.button("<").clicked() {
                     if *show_frame_no > 0 {
