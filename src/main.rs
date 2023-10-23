@@ -38,6 +38,7 @@ extern crate lazy_static;
 #[macro_use]
 extern crate rust_i18n;
 i18n!("locales", fallback = "en");
+
 struct AnalysisResultsContainer {
     series: Option<AnalysisSeries>,
 }
@@ -275,22 +276,30 @@ impl SolHat {
                                 0.0
                             };
                             ui.add(egui::ProgressBar::new(pct).animate(true).show_percentage());
-                            //ui.spinner();
-                            if ui.button(t!("cancel")).clicked() {
+
+                            ui.spacing_mut().button_padding = Vec2::new(18.0, 14.0);
+                            let cancel_icon = egui::include_image!("../assets/cancel.svg");
+                            if ui
+                                .add(egui::Button::image_and_text(cancel_icon, t!("cancel")))
+                                .clicked()
+                            {
                                 cancel::set_request_cancel();
                                 ctx.request_repaint();
-                                // Do STUFF!
                             }
                         });
                     }
                     None => {
                         ui.vertical_centered(|ui| {
                             ui.add_enabled_ui(self.enable_start(), |ui| {
-                                if ui.button(t!("start")).clicked() {
+                                let start_icon = egui::include_image!("../assets/solve.svg");
+                                ui.spacing_mut().button_padding = Vec2::new(18.0, 14.0);
+                                if ui
+                                    .add(egui::Button::image_and_text(start_icon, t!("start")))
+                                    .clicked()
+                                {
                                     let output_filename =
                                         self.state.assemble_output_filename().unwrap();
                                     self.run(output_filename);
-                                    // Do STUFF!
                                 }
                             });
                         });
