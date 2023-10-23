@@ -248,8 +248,10 @@ impl SerPreviewPane {
         }
     }
     fn options_ui(&mut self, ui: &mut Ui) -> Result<()> {
-        self.update_histogram().unwrap();
-        self.update_texture(ui.ctx()).unwrap();
+        if self.animate {
+            self.update_histogram().unwrap();
+            self.update_texture(ui.ctx()).unwrap();
+        }
 
         let Self {
             texture_handle: _,
