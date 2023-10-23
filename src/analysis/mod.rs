@@ -54,7 +54,7 @@ impl AnalysisChart {
         Line::new(raw_list_points)
             .color(Color32::from_rgb(50, 50, 50))
             .style(LineStyle::Solid)
-            .name("Raw Values")
+            .name(t!("dataanalysis.raw_values"))
     }
 
     fn sorted_data_line(&self) -> Line {
@@ -69,7 +69,7 @@ impl AnalysisChart {
         Line::new(sorted_list_points)
             .color(Color32::from_rgb(100, 200, 100))
             .style(LineStyle::Solid)
-            .name("Sorted")
+            .name(t!("dataanalysis.sorted"))
     }
 
     fn sma_line(&self) -> Line {
@@ -85,7 +85,7 @@ impl AnalysisChart {
             .color(Color32::LIGHT_BLUE)
             .style(LineStyle::Solid)
             .width(2.0)
-            .name(format!("SMA({})", self.sma_period))
+            .name(format!("{}({})", t!("dataanalysis.sma"), self.sma_period))
     }
 
     fn options_ui(&mut self, ui: &mut Ui) {
@@ -96,15 +96,15 @@ impl AnalysisChart {
             show_grid,
         } = self;
         ui.horizontal(|ui| {
-            ui.label("SMA Period:");
+            ui.label(t!("dataanalysis.sma_period"));
             ui.add(
                 egui::DragValue::new(sma_period)
                     .speed(1.0)
                     .clamp_range(2.0..=data.sigma_list.len() as f64)
                     .prefix("p: "),
             );
-            ui.checkbox(show_axes, "Show axes");
-            ui.checkbox(show_grid, "Show grid");
+            ui.checkbox(show_axes, t!("dataanalysis.show_axes"));
+            ui.checkbox(show_grid, t!("dataanalysis.show_grid"));
         });
     }
 }

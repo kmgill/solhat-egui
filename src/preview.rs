@@ -193,7 +193,7 @@ impl SerPreviewPane {
             ui.horizontal(|ui| {
                 ui.vertical_centered(|ui| {
                     ui.horizontal(|ui| {
-                        ui.label("File:");
+                        ui.label(t!("preview.file"));
                         ui.label(format!("{}", ser_file.source_file));
                     });
                     egui::Grid::new("metadata")
@@ -201,31 +201,31 @@ impl SerPreviewPane {
                         .spacing([40.0, 4.0])
                         .striped(true)
                         .show(ui, |ui| {
-                            ui.label("Image Width:");
+                            ui.label(t!("preview.image_width"));
                             ui.label(format!("{}", ser_file.image_width));
 
-                            ui.label("Image Height:");
+                            ui.label(t!("preview.image_height"));
                             ui.label(format!("{}", ser_file.image_height));
                             ui.end_row();
 
-                            ui.label("Pixel Depth:");
-                            ui.label(format!("{} bits", ser_file.pixel_depth));
+                            ui.label(t!("preview.pixel_depth"));
+                            ui.label(format!("{} {}", ser_file.pixel_depth, t!("preview.bits")));
 
-                            ui.label("Frame Count:");
+                            ui.label(t!("preview.frame_count"));
                             ui.label(format!("{}", ser_file.frame_count));
                             ui.end_row();
 
-                            ui.label("Observer:");
+                            ui.label(t!("preview.observer"));
                             ui.label(&ser_file.observer);
 
-                            ui.label("Instrument:");
+                            ui.label(t!("preview.instrument"));
                             ui.label(&ser_file.instrument);
                             ui.end_row();
 
-                            ui.label("Telescope:");
+                            ui.label(t!("preview.telescope"));
                             ui.label(format!("{}", ser_file.telescope));
 
-                            ui.label("Time of Observation (UTC):");
+                            ui.label(t!("preview.time_of_observation"));
                             ui.label(format!("{:?}", ser_file.date_time_utc.to_chrono_utc()));
                             ui.end_row();
                         });
@@ -306,7 +306,7 @@ impl SerPreviewPane {
             if ui
                 .add(
                     egui::Slider::new(show_frame_no, 0..=(ser_file.frame_count - 1))
-                        .prefix("Frame: "),
+                        .prefix(t!("preview.frame")),
                 )
                 .changed()
             {

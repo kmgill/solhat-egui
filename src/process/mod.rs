@@ -46,14 +46,14 @@ pub async fn run_async(output_filename: PathBuf, app_state: ApplicationState) ->
         let drizzle_output = drizzle_stacking(&context)?;
 
         check_cancel_status()?;
-        set_task_status("Merging Stack Buffers", 0, 0);
+        set_task_status(&t!("tasks.merging_stack_buffers"), 0, 0);
         let stacked_buffer = drizzle_output.get_finalized().unwrap();
 
         let do_ld_correction = app_state.ld_correction;
         let solar_radius = app_state.solar_radius_pixels;
         let ld_coefficient = app_state.ld_coefficient;
         let mut corrected_buffer = if do_ld_correction {
-            set_task_status("Applying Limb Correction", 0, 0);
+            set_task_status(&t!("tasks.apply_limb_correction"), 0, 0);
             ldcorrect::limb_darkening_correction_on_image(
                 &stacked_buffer,
                 solar_radius,
@@ -74,25 +74,25 @@ pub async fn run_async(output_filename: PathBuf, app_state: ApplicationState) ->
             context.frame_records.len()
         );
 
-        set_task_status("Normalizing Data", 0, 0);
+        set_task_status(&t!("tasks.normalizing_data"), 0, 0);
         if app_state.decorrelated_colors {
             corrected_buffer.normalize_to_16bit_decorrelated();
         } else {
             corrected_buffer.normalize_to_16bit();
         }
 
-        set_task_status("Saving to disk", 0, 0);
+        set_task_status(&t!("tasks.saving_to_disk"), 0, 0);
         info!(
             "Final image size: {}, {}",
             corrected_buffer.width, corrected_buffer.height
         );
 
         // Save finalized image to disk
-        set_task_status("Saving", 0, 0);
+        set_task_status(&t!("tasks.saving"), 0, 0);
         corrected_buffer.save(output_filename.to_string_lossy().as_ref())?;
 
         // The user will likely never see this actually appear on screen
-        set_task_status("Done", 1, 1);
+        set_task_status(&t!("tasks.done"), 1, 1);
     }
 
     set_task_completed();
@@ -103,7 +103,7 @@ pub async fn run_async(output_filename: PathBuf, app_state: ApplicationState) ->
 fn build_solhat_context(app_state: &ApplicationState) -> Result<ProcessContext> {
     let params = app_state.to_parameters();
 
-    set_task_status("Processing Master Flat", 0, 0);
+    set_task_status(&t!("tasks.processing_master_flat"), 0, 0);
     let master_flat = if let Some(inputs) = &params.flat_inputs {
         info!("Processing master flat...");
         CalibrationImage::new_from_file(inputs, ComputeMethod::Mean)?
@@ -113,7 +113,7 @@ fn build_solhat_context(app_state: &ApplicationState) -> Result<ProcessContext> 
 
     check_cancel_status()?;
 
-    set_task_status("Processing Master Dark Flat", 0, 0);
+    set_task_status(&t!("tasks.processing_master_dark_flat"), 0, 0);
     let master_darkflat = if let Some(inputs) = &params.darkflat_inputs {
         info!("Processing master dark flat...");
         CalibrationImage::new_from_file(inputs, ComputeMethod::Mean)?
@@ -123,7 +123,7 @@ fn build_solhat_context(app_state: &ApplicationState) -> Result<ProcessContext> 
 
     check_cancel_status()?;
 
-    set_task_status("Processing Master Dark", 0, 0);
+    set_task_status(&t!("tasks.processing_master_dark"), 0, 0);
     let master_dark = if let Some(inputs) = &params.dark_inputs {
         info!("Processing master dark...");
         CalibrationImage::new_from_file(inputs, ComputeMethod::Mean)?
@@ -133,7 +133,7 @@ fn build_solhat_context(app_state: &ApplicationState) -> Result<ProcessContext> 
 
     check_cancel_status()?;
 
-    set_task_status("Processing Master Bias", 0, 0);
+    set_task_status(&t!("tasks.processing_master_bias"), 0, 0);
     let master_bias = if let Some(inputs) = &params.bias_inputs {
         info!("Processing master bias...");
         CalibrationImage::new_from_file(inputs, ComputeMethod::Mean)?
@@ -160,7 +160,7 @@ fn frame_sigma_analysis(context: &ProcessContext) -> Result<Vec<FrameRecord>> {
 
     let frame_count = context.frame_records.len();
 
-    set_task_status("Frame Analysis", frame_count, 0);
+    set_task_status(&t!("tasks.frame_analysis"), frame_count, 0);
 
     let counter = Arc::new(Mutex::new(0));
 
@@ -176,7 +176,7 @@ fn frame_sigma_analysis(context: &ProcessContext) -> Result<Vec<FrameRecord>> {
 
             let mut c = counter.lock().unwrap();
             *c += 1;
-            set_task_status("Frame Analysis", frame_count, *c)
+            set_task_status(&t!("tasks.frame_analysis"), frame_count, *c)
         },
     )?;
 
@@ -188,7 +188,7 @@ fn frame_limiting(context: &ProcessContext) -> Result<Vec<FrameRecord>> {
 
     let frame_count = context.frame_records.len();
 
-    set_task_status("Applying Frame Limits", frame_count, 0);
+    set_task_status(&t!("tasks.frame_limits"), frame_count, 0);
 
     let counter = Arc::new(Mutex::new(0));
 
@@ -198,7 +198,7 @@ fn frame_limiting(context: &ProcessContext) -> Result<Vec<FrameRecord>> {
 
         let mut c = counter.lock().unwrap();
         *c += 1;
-        set_task_status("Applying Frame Limits", frame_count, *c)
+        set_task_status(&t!("tasks.frame_limits"), frame_count, *c)
     })?;
 
     Ok(frame_records)
@@ -209,7 +209,7 @@ fn frame_rotation(context: &ProcessContext) -> Result<Vec<FrameRecord>> {
 
     let frame_count = context.frame_records.len();
 
-    set_task_status("Computing Parallactic Angle Rotations", frame_count, 0);
+    set_task_status(&t!("tasks.parallactice_angle"), frame_count, 0);
 
     let counter = Arc::new(Mutex::new(0));
 
@@ -222,7 +222,7 @@ fn frame_rotation(context: &ProcessContext) -> Result<Vec<FrameRecord>> {
 
         let mut c = counter.lock().unwrap();
         *c += 1;
-        set_task_status("Computing Parallactic Angle Rotations", frame_count, *c)
+        set_task_status(&t!("tasks.parallactic_angle"), frame_count, *c)
     })?;
 
     Ok(frame_records)
@@ -233,7 +233,7 @@ fn drizzle_stacking(context: &ProcessContext) -> Result<BilinearDrizzle> {
 
     let frame_count = context.frame_records.len();
 
-    set_task_status("Stacking", frame_count, 0);
+    set_task_status(&t!("tasks.stacking"), frame_count, 0);
 
     let counter = Arc::new(Mutex::new(0));
 
@@ -243,7 +243,7 @@ fn drizzle_stacking(context: &ProcessContext) -> Result<BilinearDrizzle> {
 
         let mut c = counter.lock().unwrap();
         *c += 1;
-        set_task_status("Stacking", frame_count, *c)
+        set_task_status(&t!("tasks.stacking"), frame_count, *c)
     })?;
 
     Ok(drizzle_output)

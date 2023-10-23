@@ -88,7 +88,7 @@ pub async fn run_sigma_analysis(
     check_cancel_status()?;
     let frame_count = context.frame_records.len();
     *COUNTER.lock().unwrap() = 0;
-    set_task_status("Frame Analysis", frame_count, 0);
+    set_task_status(&t!("tasks.frame_analysis"), frame_count, 0);
     let frame_records = match frame_analysis_window_size(
         &context,
         context.parameters.analysis_window_size,
@@ -100,7 +100,7 @@ pub async fn run_sigma_analysis(
 
             let mut c = COUNTER.lock().unwrap();
             *c += 1;
-            set_task_status("Frame Analysis", frame_count, *c);
+            set_task_status(&t!("tasks.frame_analysis"), frame_count, *c);
             // check_cancel_status(&sender)
         },
     ) {

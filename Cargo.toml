@@ -41,6 +41,7 @@ dirs = "5.0.0"
 solhat = { git = "https://github.com/kmgill/solhat.git" }
 # solhat = {path = "../solhat"}
 rand = "0.8.5"
+rust-i18n = "2.2.1"
 
 
 [package.metadata.deb]

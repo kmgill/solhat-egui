@@ -35,6 +35,9 @@ extern crate stump;
 #[macro_use]
 extern crate lazy_static;
 
+#[macro_use]
+extern crate rust_i18n;
+i18n!("locales", fallback = "en");
 struct AnalysisResultsContainer {
     series: Option<AnalysisSeries>,
 }
@@ -130,7 +133,7 @@ async fn main() -> Result<(), eframe::Error> {
         Box::<SolHat>::default()
     };
 
-    eframe::run_native("SolHat", options, Box::new(|_cc| solhat))
+    eframe::run_native(&t!("apptitle"), options, Box::new(|_cc| solhat))
 }
 
 impl eframe::App for SolHat {
@@ -164,7 +167,7 @@ macro_rules! create_file_input {
             35,
         ))
         .on_hover_text(&$state_property.clone().unwrap_or("".to_owned()));
-        if $ui.button("Open file…").clicked() {
+        if $ui.button(t!("inputs.open_file")).clicked() {
             if let Some(path) = rfd::FileDialog::new()
                 .set_title(&format!("Open {}", $name))
                 .set_directory($state.window.get_last_opened_folder())
@@ -191,7 +194,7 @@ macro_rules! create_file_input {
                 $state.window.update_last_opened_folder(&path);
             }
         }
-        if $ui.button("Clear").clicked() {
+        if $ui.button(t!("inputs.clear")).clicked() {
             $preview_property.unload_ser();
             $state_property = None;
         }
@@ -273,7 +276,7 @@ impl SolHat {
                             };
                             ui.add(egui::ProgressBar::new(pct).animate(true).show_percentage());
                             //ui.spinner();
-                            if ui.button("Cancel").clicked() {
+                            if ui.button(t!("cancel")).clicked() {
                                 cancel::set_request_cancel();
                                 ctx.request_repaint();
                                 // Do STUFF!
@@ -283,7 +286,7 @@ impl SolHat {
                     None => {
                         ui.vertical_centered(|ui| {
                             ui.add_enabled_ui(self.enable_start(), |ui| {
-                                if ui.button("Start").clicked() {
+                                if ui.button(t!("start")).clicked() {
                                     let output_filename =
                                         self.state.assemble_output_filename().unwrap();
                                     self.run(output_filename);
@@ -313,33 +316,33 @@ impl SolHat {
                     ui.selectable_value(
                         &mut self.state.window.selected_preview_pane,
                         PreviewPane::Light,
-                        "Light",
+                        t!("light"),
                     );
                     ui.selectable_value(
                         &mut self.state.window.selected_preview_pane,
                         PreviewPane::Dark,
-                        "Dark",
+                        t!("dark"),
                     );
                     ui.selectable_value(
                         &mut self.state.window.selected_preview_pane,
                         PreviewPane::Flat,
-                        "Flat",
+                        t!("flat"),
                     );
                     ui.selectable_value(
                         &mut self.state.window.selected_preview_pane,
                         PreviewPane::DarkFlat,
-                        "Dark Flat",
+                        t!("darkflat"),
                     );
                     ui.selectable_value(
                         &mut self.state.window.selected_preview_pane,
                         PreviewPane::Bias,
-                        "Bias",
+                        t!("bias"),
                     );
                     if !self.analysis_chart.is_empty() {
                         ui.selectable_value(
                             &mut self.state.window.selected_preview_pane,
                             PreviewPane::Analysis,
-                            "Analysis",
+                            t!("analysis"),
                         );
                     }
                 });
@@ -371,18 +374,18 @@ impl SolHat {
     }
 
     fn outputs_frame_contents(&mut self, ui: &mut egui::Ui, _ctx: &egui::Context) {
-        ui.heading("Output");
+        ui.heading(t!("output.title"));
         egui::Grid::new("process_grid_outputs")
             .num_columns(2)
             .spacing([40.0, 4.0])
             .striped(true)
             .show(ui, |ui| {
-                ui.label("Output Folder:");
+                ui.label(t!("output.output_folder"));
                 ui.horizontal(|ui| {
                     if let Some(output_dir) = &self.state.output_dir {
                         ui.monospace(output_dir);
                     }
-                    if ui.button("Open folder...").clicked() {
+                    if ui.button(t!("output.open_folder")).clicked() {
                         if let Some(path) = rfd::FileDialog::new().pick_folder() {
                             self.state.output_dir = Some(path.display().to_string());
                         }
@@ -391,7 +394,7 @@ impl SolHat {
                 ui.end_row();
 
                 if let Ok(output_filename) = self.state.assemble_output_filename() {
-                    ui.label("Output Filename:");
+                    ui.label(t!("output.output_filename"));
                     ui.monospace(truncate_to(output_filename.to_string_lossy().as_ref(), 55))
                         .on_hover_text(output_filename.to_string_lossy().as_ref());
                 }
@@ -399,7 +402,7 @@ impl SolHat {
     }
 
     fn inputs_frame_contents(&mut self, ui: &mut egui::Ui, _ctx: &egui::Context) {
-        ui.heading("Inputs");
+        ui.heading(t!("inputs.title"));
         egui::Grid::new("inputs_3x3_lights")
             .num_columns(4)
             .spacing([40.0, 4.0])
@@ -407,7 +410,7 @@ impl SolHat {
             .show(ui, |ui| {
                 create_file_input!(
                     ui,
-                    "Light",
+                    t!("light"),
                     self.state,
                     self.state.light,
                     self.preview_light,
@@ -416,7 +419,7 @@ impl SolHat {
                 );
                 create_file_input!(
                     ui,
-                    "Dark",
+                    t!("dark"),
                     self.state,
                     self.state.dark,
                     self.preview_dark,
@@ -425,7 +428,7 @@ impl SolHat {
                 );
                 create_file_input!(
                     ui,
-                    "Flat",
+                    t!("flat"),
                     self.state,
                     self.state.flat,
                     self.preview_flat,
@@ -434,7 +437,7 @@ impl SolHat {
                 );
                 create_file_input!(
                     ui,
-                    "Dark Flat",
+                    t!("darkflat"),
                     self.state,
                     self.state.darkflat,
                     self.preview_darkflat,
@@ -443,7 +446,7 @@ impl SolHat {
                 );
                 create_file_input!(
                     ui,
-                    "Bias",
+                    t!("bias"),
                     self.state,
                     self.state.bias,
                     self.preview_bias,
@@ -452,7 +455,7 @@ impl SolHat {
                 );
                 create_file_input!(
                     ui,
-                    "Hot Pixal Map",
+                    t!("hotpixelmap"),
                     self.state,
                     self.state.hot_pixel_map,
                     self.preview_light,
@@ -464,18 +467,26 @@ impl SolHat {
     }
 
     fn observation_frame_contents(&mut self, ui: &mut egui::Ui, _ctx: &egui::Context) {
-        ui.heading("Observation");
+        ui.heading(t!("observation.title"));
 
         egui::Grid::new("process_grid_observation")
             .num_columns(2)
             .spacing([40.0, 4.0])
             .striped(true)
             .show(ui, |ui| {
-                ui.label("Target:");
+                ui.label(t!("observation.title"));
                 ui.horizontal(|ui| {
-                    ui.selectable_value(&mut self.state.target, Target::Sun, "Sun");
-                    ui.selectable_value(&mut self.state.target, Target::Moon, "Moon");
-                    ui.selectable_value(&mut self.state.target, Target::None, "None / Prealigned");
+                    ui.selectable_value(&mut self.state.target, Target::Sun, t!("observation.sun"));
+                    ui.selectable_value(
+                        &mut self.state.target,
+                        Target::Moon,
+                        t!("observation.moon"),
+                    );
+                    ui.selectable_value(
+                        &mut self.state.target,
+                        Target::None,
+                        t!("observation.none"),
+                    );
                 });
             });
 
@@ -485,7 +496,7 @@ impl SolHat {
                 .spacing([40.0, 4.0])
                 .striped(true)
                 .show(ui, |ui| {
-                    ui.label("Observer Latitude:");
+                    ui.label(t!("observation.obs_latitude"));
                     ui.add(
                         egui::DragValue::new(&mut self.state.obs_latitude)
                             .min_decimals(1)
@@ -494,7 +505,7 @@ impl SolHat {
                     );
                     ui.end_row();
 
-                    ui.label("Observer Longitude:");
+                    ui.label(t!("observation.obs_longitude"));
                     ui.add(
                         egui::DragValue::new(&mut self.state.obs_longitude)
                             .min_decimals(1)
@@ -507,19 +518,22 @@ impl SolHat {
     }
 
     fn options_frame_contents(&mut self, ui: &mut egui::Ui, _ctx: &egui::Context) {
-        ui.heading("Process Options");
+        ui.heading(t!("processoptions.title"));
         egui::Grid::new("process_grid_options")
             .num_columns(2)
             .spacing([40.0, 4.0])
             .striped(true)
             .show(ui, |ui| {
                 let threshtest_icon = egui::include_image!("../assets/ellipse.svg");
-                ui.label("Object Detection Threshold:");
+                ui.label(t!("processoptions.obj_detect_thresh"));
                 ui.add(egui::DragValue::new(&mut self.state.obj_detection_threshold).speed(10.0));
 
                 ui.add_enabled_ui(!self.preview_light.is_empty(), |ui| {
                     if ui
-                        .add(egui::Button::image_and_text(threshtest_icon, "Test"))
+                        .add(egui::Button::image_and_text(
+                            threshtest_icon,
+                            t!("processoptions.obj_detect_test"),
+                        ))
                         .clicked()
                     {
                         self.preview_light
@@ -532,11 +546,14 @@ impl SolHat {
                 ui.end_row();
 
                 let analysis_icon = egui::include_image!("../assets/chart.svg");
-                ui.label("Analysis Window Size:");
+                ui.label(t!("processoptions.analysis_window_size"));
                 ui.add(egui::DragValue::new(&mut self.state.analysis_window_size).speed(1.0));
                 ui.add_enabled_ui(!self.preview_light.is_empty(), |ui| {
                     if ui
-                        .add(egui::Button::image_and_text(analysis_icon, "Run Analysis"))
+                        .add(egui::Button::image_and_text(
+                            analysis_icon,
+                            t!("processoptions.analysis_run"),
+                        ))
                         .clicked()
                     {
                         // Do stuff
@@ -545,47 +562,63 @@ impl SolHat {
                 });
                 ui.end_row();
 
-                ui.label("Drizzle:");
+                ui.label(t!("processoptions.drizzle"));
                 ui.horizontal(|ui| {
-                    ui.selectable_value(&mut self.state.drizzle_scale, Scale::Scale1_0, "None");
-                    ui.selectable_value(&mut self.state.drizzle_scale, Scale::Scale1_5, "1.5x");
-                    ui.selectable_value(&mut self.state.drizzle_scale, Scale::Scale2_0, "2.0x");
-                    ui.selectable_value(&mut self.state.drizzle_scale, Scale::Scale3_0, "3.0x");
+                    ui.selectable_value(
+                        &mut self.state.drizzle_scale,
+                        Scale::Scale1_0,
+                        t!("processoptions.drizzle_none"),
+                    );
+                    ui.selectable_value(
+                        &mut self.state.drizzle_scale,
+                        Scale::Scale1_5,
+                        t!("processoptions.drizzle_15x"),
+                    );
+                    ui.selectable_value(
+                        &mut self.state.drizzle_scale,
+                        Scale::Scale2_0,
+                        t!("processoptions.drizzle_20x"),
+                    );
+                    ui.selectable_value(
+                        &mut self.state.drizzle_scale,
+                        Scale::Scale3_0,
+                        t!("processoptions.drizzle_30x"),
+                    );
                 });
                 ui.end_row();
 
-                ui.label("Use Maximum Frames:");
+                ui.label(t!("processoptions.use_max_frames"));
                 ui.add(egui::DragValue::new(&mut self.state.max_frames).speed(10.0));
                 ui.end_row();
 
-                ui.label("Minimum Sigma:");
+                ui.label(t!("processoptions.minimum_sigma"));
                 ui.add(egui::DragValue::new(&mut self.state.min_sigma).speed(1.0));
                 ui.end_row();
 
-                ui.label("Maximum Sigma:");
+                ui.label(t!("processoptions.maximum_sigma"));
                 ui.add(egui::DragValue::new(&mut self.state.max_sigma).speed(1.0));
                 ui.end_row();
 
-                ui.label("Include Top Percentage:");
+                ui.label(t!("processoptions.include_top_percent"));
                 ui.add(egui::DragValue::new(&mut self.state.top_percentage).speed(1.0));
                 ui.end_row();
 
                 ui.label("");
                 ui.add(egui::Checkbox::new(
                     &mut self.state.decorrelated_colors,
-                    "Decorrelated Colors",
+                    t!("processoptions.decorrelated_colors"),
                 ));
                 ui.end_row();
 
                 ui.label("");
                 ui.add(egui::Checkbox::new(
                     &mut self.state.ld_correction,
-                    "Limb Darkening Correction",
+                    t!("processoptions.limb_dark_correction"),
                 ));
                 ui.end_row();
 
                 ui.add_enabled_ui(self.state.ld_correction, |ui| {
-                    ui.label("Limb Darkening Coefficient:");
+                    ui.label(t!("processoptions.ldc_coefficient"));
                 });
 
                 ui.add_enabled_ui(self.state.ld_correction, |ui| {
@@ -594,33 +627,33 @@ impl SolHat {
                 ui.end_row();
 
                 ui.add_enabled_ui(self.state.ld_correction, |ui| {
-                    ui.label("Solar Disk Radius (Pixels):");
+                    ui.label(t!("processoptions.ldc_solar_radius"));
                 });
                 ui.add_enabled_ui(self.state.ld_correction, |ui| {
                     ui.add(egui::DragValue::new(&mut self.state.solar_radius_pixels).speed(1.0));
                 });
                 ui.end_row();
 
-                ui.label("Crop Width (Pixels):");
+                ui.label(t!("processoptions.crop_width"));
                 ui.add(egui::DragValue::new(&mut self.state.crop_width).speed(1.0));
                 ui.end_row();
 
-                ui.label("Crop Height (Pixels):");
+                ui.label(t!("processoptions.crop_height"));
                 ui.add(egui::DragValue::new(&mut self.state.crop_height).speed(1.0));
                 ui.end_row();
 
-                ui.label("Horizontal Offset (Pixels):");
+                ui.label(t!("processoptions.horiz_offset"));
                 ui.add(egui::DragValue::new(&mut self.state.horiz_offset).speed(1.0));
                 ui.end_row();
 
-                ui.label("Vertical Offset (Pixels):");
+                ui.label(t!("processoptions.vert_offset"));
                 ui.add(egui::DragValue::new(&mut self.state.vert_offset).speed(1.0));
                 ui.end_row();
 
-                ui.label("Filename Free Text:");
+                ui.label(t!("processoptions.filename_free_text"));
                 ui.add(
                     egui::TextEdit::singleline(&mut self.state.freetext)
-                        .hint_text("Write something here"),
+                        .hint_text(t!("processoptions.filename_hint")),
                 );
                 ui.end_row();
             });
