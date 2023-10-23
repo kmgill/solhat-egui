@@ -31,7 +31,7 @@ impl Histogram {
             num_bins,
             min_value,
             max_value,
-            bins: (0..num_bins).into_iter().map(|_| Bin::default()).collect(),
+            bins: (0..num_bins).map(|_| Bin::default()).collect(),
         }
     }
 
@@ -152,7 +152,7 @@ impl SerPreviewPane {
     }
 
     pub fn load_ser(&mut self, ctx: &egui::Context, texture_path: &str) -> Result<()> {
-        self.ser_file = Some(SerFile::load_ser(&texture_path)?);
+        self.ser_file = Some(SerFile::load_ser(texture_path)?);
 
         self.update_texture(ctx)?;
         self.update_histogram()?;
@@ -194,7 +194,7 @@ impl SerPreviewPane {
                 ui.vertical_centered(|ui| {
                     ui.horizontal(|ui| {
                         ui.label(t!("preview.file"));
-                        ui.label(format!("{}", ser_file.source_file));
+                        ui.label(ser_file.source_file.to_string());
                     });
                     egui::Grid::new("metadata")
                         .num_columns(2)
@@ -202,17 +202,17 @@ impl SerPreviewPane {
                         .striped(true)
                         .show(ui, |ui| {
                             ui.label(t!("preview.image_width"));
-                            ui.label(format!("{}", ser_file.image_width));
+                            ui.label(ser_file.image_width.to_string());
 
                             ui.label(t!("preview.image_height"));
-                            ui.label(format!("{}", ser_file.image_height));
+                            ui.label(ser_file.image_height.to_string());
                             ui.end_row();
 
                             ui.label(t!("preview.pixel_depth"));
                             ui.label(format!("{} {}", ser_file.pixel_depth, t!("preview.bits")));
 
                             ui.label(t!("preview.frame_count"));
-                            ui.label(format!("{}", ser_file.frame_count));
+                            ui.label(ser_file.frame_count.to_string());
                             ui.end_row();
 
                             ui.label(t!("preview.observer"));
@@ -223,7 +223,7 @@ impl SerPreviewPane {
                             ui.end_row();
 
                             ui.label(t!("preview.telescope"));
-                            ui.label(format!("{}", ser_file.telescope));
+                            ui.label(ser_file.telescope.to_string());
 
                             ui.label(t!("preview.time_of_observation"));
                             ui.label(format!("{:?}", ser_file.date_time_utc.to_chrono_utc()));
@@ -285,10 +285,8 @@ impl SerPreviewPane {
                     if ui.button("⏸").clicked() {
                         *animate = false;
                     }
-                } else {
-                    if ui.button("⏵").clicked() {
-                        *animate = true;
-                    }
+                } else if ui.button("⏵").clicked() {
+                    *animate = true;
                 }
 
                 if ui.button("⏹").clicked() {
