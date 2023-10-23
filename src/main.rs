@@ -162,7 +162,8 @@ macro_rules! create_file_input {
         $ui.monospace(truncate_to(
             &$state_property.clone().unwrap_or("".to_owned()),
             35,
-        ));
+        ))
+        .on_hover_text(&$state_property.clone().unwrap_or("".to_owned()));
         if $ui.button("Open file…").clicked() {
             if let Some(path) = rfd::FileDialog::new()
                 .set_title(&format!("Open {}", $name))
@@ -248,44 +249,16 @@ impl SolHat {
                 /////////////////////////////////
 
                 ui.add_enabled_ui(!task_running, |ui| {
-                    ui.heading("Inputs");
-                    egui::Grid::new("process_grid_inputs")
-                        .num_columns(2)
-                        .spacing([40.0, 4.0])
-                        .striped(true)
-                        .show(ui, |ui| {
-                            self.inputs_frame_contents(ui, ctx);
-                        });
+                    self.inputs_frame_contents(ui, ctx);
                     ui.separator();
 
-                    ui.heading("Output");
-                    egui::Grid::new("process_grid_outputs")
-                        .num_columns(2)
-                        .spacing([40.0, 4.0])
-                        .striped(true)
-                        .show(ui, |ui| {
-                            self.outputs_frame_contents(ui, ctx);
-                        });
+                    self.outputs_frame_contents(ui, ctx);
                     ui.separator();
 
-                    ui.heading("Observation");
-                    egui::Grid::new("process_grid_observation")
-                        .num_columns(2)
-                        .spacing([40.0, 4.0])
-                        .striped(true)
-                        .show(ui, |ui| {
-                            self.observation_frame_contents(ui, ctx);
-                        });
+                    self.observation_frame_contents(ui, ctx);
                     ui.separator();
 
-                    ui.heading("Process Options");
-                    egui::Grid::new("process_grid_options")
-                        .num_columns(2)
-                        .spacing([40.0, 4.0])
-                        .striped(true)
-                        .show(ui, |ui| {
-                            self.options_frame_contents(ui, ctx);
-                        });
+                    self.options_frame_contents(ui, ctx);
                     ui.separator();
                 });
 
@@ -398,27 +371,35 @@ impl SolHat {
     }
 
     fn outputs_frame_contents(&mut self, ui: &mut egui::Ui, _ctx: &egui::Context) {
-        // Light Frames
-        ui.label("Output Folder:");
-        ui.horizontal(|ui| {
-            if let Some(output_dir) = &self.state.output_dir {
-                ui.monospace(output_dir);
-            }
-            if ui.button("Open folder...").clicked() {
-                if let Some(path) = rfd::FileDialog::new().pick_folder() {
-                    self.state.output_dir = Some(path.display().to_string());
-                }
-            }
-        });
-        ui.end_row();
+        ui.heading("Output");
+        egui::Grid::new("process_grid_outputs")
+            .num_columns(2)
+            .spacing([40.0, 4.0])
+            .striped(true)
+            .show(ui, |ui| {
+                ui.label("Output Folder:");
+                ui.horizontal(|ui| {
+                    if let Some(output_dir) = &self.state.output_dir {
+                        ui.monospace(output_dir);
+                    }
+                    if ui.button("Open folder...").clicked() {
+                        if let Some(path) = rfd::FileDialog::new().pick_folder() {
+                            self.state.output_dir = Some(path.display().to_string());
+                        }
+                    }
+                });
+                ui.end_row();
 
-        if let Ok(output_filename) = self.state.assemble_output_filename() {
-            ui.label("Output Filename:");
-            ui.monospace(output_filename.to_string_lossy().as_ref());
-        }
+                if let Ok(output_filename) = self.state.assemble_output_filename() {
+                    ui.label("Output Filename:");
+                    ui.monospace(truncate_to(output_filename.to_string_lossy().as_ref(), 55))
+                        .on_hover_text(output_filename.to_string_lossy().as_ref());
+                }
+            });
     }
 
     fn inputs_frame_contents(&mut self, ui: &mut egui::Ui, _ctx: &egui::Context) {
+        ui.heading("Inputs");
         egui::Grid::new("inputs_3x3_lights")
             .num_columns(4)
             .spacing([40.0, 4.0])
@@ -483,134 +464,166 @@ impl SolHat {
     }
 
     fn observation_frame_contents(&mut self, ui: &mut egui::Ui, _ctx: &egui::Context) {
-        ui.label("Observer Latitude:");
-        ui.add(
-            egui::DragValue::new(&mut self.state.obs_latitude)
-                .min_decimals(1)
-                .max_decimals(4)
-                .speed(1.0),
-        );
-        ui.end_row();
+        ui.heading("Observation");
 
-        ui.label("Observer Longitude:");
-        ui.add(
-            egui::DragValue::new(&mut self.state.obs_longitude)
-                .min_decimals(1)
-                .max_decimals(4)
-                .speed(1.0),
-        );
-        ui.end_row();
+        egui::Grid::new("process_grid_observation")
+            .num_columns(2)
+            .spacing([40.0, 4.0])
+            .striped(true)
+            .show(ui, |ui| {
+                ui.label("Target:");
+                ui.horizontal(|ui| {
+                    ui.selectable_value(&mut self.state.target, Target::Sun, "Sun");
+                    ui.selectable_value(&mut self.state.target, Target::Moon, "Moon");
+                    ui.selectable_value(&mut self.state.target, Target::None, "None / Prealigned");
+                });
+            });
 
-        ui.label("Target:");
-        ui.horizontal(|ui| {
-            ui.selectable_value(&mut self.state.target, Target::Sun, "Sun");
-            ui.selectable_value(&mut self.state.target, Target::Moon, "Moon");
-            ui.selectable_value(&mut self.state.target, Target::None, "None / Prealigned");
+        ui.add_enabled_ui(self.state.target != Target::None, |ui| {
+            egui::Grid::new("process_grid_observation_latlon")
+                .num_columns(2)
+                .spacing([40.0, 4.0])
+                .striped(true)
+                .show(ui, |ui| {
+                    ui.label("Observer Latitude:");
+                    ui.add(
+                        egui::DragValue::new(&mut self.state.obs_latitude)
+                            .min_decimals(1)
+                            .max_decimals(4)
+                            .speed(1.0),
+                    );
+                    ui.end_row();
+
+                    ui.label("Observer Longitude:");
+                    ui.add(
+                        egui::DragValue::new(&mut self.state.obs_longitude)
+                            .min_decimals(1)
+                            .max_decimals(4)
+                            .speed(1.0),
+                    );
+                    ui.end_row();
+                });
         });
-        ui.end_row();
     }
 
     fn options_frame_contents(&mut self, ui: &mut egui::Ui, _ctx: &egui::Context) {
-        let threshtest_icon = egui::include_image!("../assets/ellipse.svg");
-        ui.label("Object Detection Threshold:");
-        ui.add(egui::DragValue::new(&mut self.state.obj_detection_threshold).speed(10.0));
+        ui.heading("Process Options");
+        egui::Grid::new("process_grid_options")
+            .num_columns(2)
+            .spacing([40.0, 4.0])
+            .striped(true)
+            .show(ui, |ui| {
+                let threshtest_icon = egui::include_image!("../assets/ellipse.svg");
+                ui.label("Object Detection Threshold:");
+                ui.add(egui::DragValue::new(&mut self.state.obj_detection_threshold).speed(10.0));
 
-        ui.add_enabled_ui(!self.preview_light.is_empty(), |ui| {
-            if ui
-                .add(egui::Button::image_and_text(threshtest_icon, "Test"))
-                .clicked()
-            {
-                self.preview_light
-                    .threshold_test(ui, &self.state)
-                    .expect("Failed threshold test");
-                self.state.window.selected_preview_pane = PreviewPane::Light;
-                // Do stuff
-            }
-        });
-        ui.end_row();
+                ui.add_enabled_ui(!self.preview_light.is_empty(), |ui| {
+                    if ui
+                        .add(egui::Button::image_and_text(threshtest_icon, "Test"))
+                        .clicked()
+                    {
+                        self.preview_light
+                            .threshold_test(ui, &self.state)
+                            .expect("Failed threshold test");
+                        self.state.window.selected_preview_pane = PreviewPane::Light;
+                        // Do stuff
+                    }
+                });
+                ui.end_row();
 
-        let analysis_icon = egui::include_image!("../assets/chart.svg");
-        ui.label("Analysis Window Size:");
-        ui.add(egui::DragValue::new(&mut self.state.analysis_window_size).speed(1.0));
-        ui.add_enabled_ui(!self.preview_light.is_empty(), |ui| {
-            if ui
-                .add(egui::Button::image_and_text(analysis_icon, "Run Analysis"))
-                .clicked()
-            {
-                // Do stuff
-                self.run_analysis();
-            }
-        });
-        ui.end_row();
+                let analysis_icon = egui::include_image!("../assets/chart.svg");
+                ui.label("Analysis Window Size:");
+                ui.add(egui::DragValue::new(&mut self.state.analysis_window_size).speed(1.0));
+                ui.add_enabled_ui(!self.preview_light.is_empty(), |ui| {
+                    if ui
+                        .add(egui::Button::image_and_text(analysis_icon, "Run Analysis"))
+                        .clicked()
+                    {
+                        // Do stuff
+                        self.run_analysis();
+                    }
+                });
+                ui.end_row();
 
-        ui.label("Drizzle:");
-        ui.horizontal(|ui| {
-            ui.selectable_value(&mut self.state.drizzle_scale, Scale::Scale1_0, "None");
-            ui.selectable_value(&mut self.state.drizzle_scale, Scale::Scale1_5, "1.5x");
-            ui.selectable_value(&mut self.state.drizzle_scale, Scale::Scale2_0, "2.0x");
-            ui.selectable_value(&mut self.state.drizzle_scale, Scale::Scale3_0, "3.0x");
-        });
-        ui.end_row();
+                ui.label("Drizzle:");
+                ui.horizontal(|ui| {
+                    ui.selectable_value(&mut self.state.drizzle_scale, Scale::Scale1_0, "None");
+                    ui.selectable_value(&mut self.state.drizzle_scale, Scale::Scale1_5, "1.5x");
+                    ui.selectable_value(&mut self.state.drizzle_scale, Scale::Scale2_0, "2.0x");
+                    ui.selectable_value(&mut self.state.drizzle_scale, Scale::Scale3_0, "3.0x");
+                });
+                ui.end_row();
 
-        ui.label("Use Maximum Frames:");
-        ui.add(egui::DragValue::new(&mut self.state.max_frames).speed(10.0));
-        ui.end_row();
+                ui.label("Use Maximum Frames:");
+                ui.add(egui::DragValue::new(&mut self.state.max_frames).speed(10.0));
+                ui.end_row();
 
-        ui.label("Minimum Sigma:");
-        ui.add(egui::DragValue::new(&mut self.state.min_sigma).speed(1.0));
-        ui.end_row();
+                ui.label("Minimum Sigma:");
+                ui.add(egui::DragValue::new(&mut self.state.min_sigma).speed(1.0));
+                ui.end_row();
 
-        ui.label("Maximum Sigma:");
-        ui.add(egui::DragValue::new(&mut self.state.max_sigma).speed(1.0));
-        ui.end_row();
+                ui.label("Maximum Sigma:");
+                ui.add(egui::DragValue::new(&mut self.state.max_sigma).speed(1.0));
+                ui.end_row();
 
-        ui.label("Include Top Percentage:");
-        ui.add(egui::DragValue::new(&mut self.state.top_percentage).speed(1.0));
-        ui.end_row();
+                ui.label("Include Top Percentage:");
+                ui.add(egui::DragValue::new(&mut self.state.top_percentage).speed(1.0));
+                ui.end_row();
 
-        ui.label("");
-        ui.add(egui::Checkbox::new(
-            &mut self.state.decorrelated_colors,
-            "Decorrelated Colors",
-        ));
-        ui.end_row();
+                ui.label("");
+                ui.add(egui::Checkbox::new(
+                    &mut self.state.decorrelated_colors,
+                    "Decorrelated Colors",
+                ));
+                ui.end_row();
 
-        ui.label("");
-        ui.add(egui::Checkbox::new(
-            &mut self.state.ld_correction,
-            "Limb Darkening Correction",
-        ));
-        ui.end_row();
+                ui.label("");
+                ui.add(egui::Checkbox::new(
+                    &mut self.state.ld_correction,
+                    "Limb Darkening Correction",
+                ));
+                ui.end_row();
 
-        ui.label("Limb Darkening Coefficient:");
-        ui.add(egui::DragValue::new(&mut self.state.ld_coefficient).speed(0.1));
-        ui.end_row();
+                ui.add_enabled_ui(self.state.ld_correction, |ui| {
+                    ui.label("Limb Darkening Coefficient:");
+                });
 
-        ui.label("Solar Disk Radius (Pixels):");
-        ui.add(egui::DragValue::new(&mut self.state.solar_radius_pixels).speed(1.0));
-        ui.end_row();
+                ui.add_enabled_ui(self.state.ld_correction, |ui| {
+                    ui.add(egui::DragValue::new(&mut self.state.ld_coefficient).speed(0.1));
+                });
+                ui.end_row();
 
-        ui.label("Crop Width (Pixels):");
-        ui.add(egui::DragValue::new(&mut self.state.crop_width).speed(1.0));
-        ui.end_row();
+                ui.add_enabled_ui(self.state.ld_correction, |ui| {
+                    ui.label("Solar Disk Radius (Pixels):");
+                });
+                ui.add_enabled_ui(self.state.ld_correction, |ui| {
+                    ui.add(egui::DragValue::new(&mut self.state.solar_radius_pixels).speed(1.0));
+                });
+                ui.end_row();
 
-        ui.label("Crop Height (Pixels):");
-        ui.add(egui::DragValue::new(&mut self.state.crop_height).speed(1.0));
-        ui.end_row();
+                ui.label("Crop Width (Pixels):");
+                ui.add(egui::DragValue::new(&mut self.state.crop_width).speed(1.0));
+                ui.end_row();
 
-        ui.label("Horizontal Offset (Pixels):");
-        ui.add(egui::DragValue::new(&mut self.state.horiz_offset).speed(1.0));
-        ui.end_row();
+                ui.label("Crop Height (Pixels):");
+                ui.add(egui::DragValue::new(&mut self.state.crop_height).speed(1.0));
+                ui.end_row();
 
-        ui.label("Vertical Offset (Pixels):");
-        ui.add(egui::DragValue::new(&mut self.state.vert_offset).speed(1.0));
-        ui.end_row();
+                ui.label("Horizontal Offset (Pixels):");
+                ui.add(egui::DragValue::new(&mut self.state.horiz_offset).speed(1.0));
+                ui.end_row();
 
-        ui.label("Filename Free Text:");
-        ui.add(
-            egui::TextEdit::singleline(&mut self.state.freetext).hint_text("Write something here"),
-        );
-        ui.end_row();
+                ui.label("Vertical Offset (Pixels):");
+                ui.add(egui::DragValue::new(&mut self.state.vert_offset).speed(1.0));
+                ui.end_row();
+
+                ui.label("Filename Free Text:");
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.state.freetext)
+                        .hint_text("Write something here"),
+                );
+                ui.end_row();
+            });
     }
 
     fn enable_start(&self) -> bool {
