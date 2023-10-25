@@ -297,13 +297,17 @@ impl SolHat {
                 match get_task_status() {
                     Some(TaskStatus::TaskPercentage(task_name, len, cnt)) => {
                         ui.vertical_centered(|ui| {
-                            ui.monospace(task_name);
+                            ui.horizontal(|ui| {
+                                ui.monospace(task_name);
+                                ui.spinner();
+                            });
+
                             let pct = if len > 0 {
                                 cnt as f32 / len as f32
                             } else {
                                 0.0
                             };
-                            ui.add(egui::ProgressBar::new(pct).animate(true).show_percentage());
+                            ui.add(egui::ProgressBar::new(pct).show_percentage());
 
                             ui.spacing_mut().button_padding = Vec2::new(18.0, 14.0);
                             let cancel_icon = egui::include_image!("../assets/cancel.svg");
@@ -328,6 +332,7 @@ impl SolHat {
                                     let output_filename =
                                         self.state.assemble_output_filename().unwrap();
                                     self.run(output_filename);
+                                    ctx.request_repaint();
                                 }
                             });
                         });
@@ -424,7 +429,6 @@ impl SolHat {
                 // });
             });
 
-        ctx.request_repaint_after(Duration::from_millis(10));
         Ok(())
     }
 
@@ -742,6 +746,7 @@ impl SolHat {
 
     fn run(&mut self, output_filename: PathBuf) {
         let state_copy = self.state.clone();
+        set_task_status(&t!("tasks.starting"), 1, 1);
 
         tokio::spawn(async move {
             {
@@ -750,18 +755,21 @@ impl SolHat {
                     .unwrap();
 
                 IMAGE_RESULTS.lock().unwrap().results = Some(results);
+                set_task_completed();
             }
         });
     }
 
     fn run_analysis(&mut self) {
         let state_copy = self.state.clone();
+        set_task_status(&t!("tasks.starting"), 1, 1);
 
         tokio::spawn(async move {
             {
                 let analysis_data = sigma::run_sigma_analysis(state_copy).await.unwrap();
                 // TODO: Seriously, Kevin, learn to do proper data flow. Come on.
                 ANALYSIS_RESULTS.lock().unwrap().series = Some(analysis_data);
+                set_task_completed();
             }
         });
     }

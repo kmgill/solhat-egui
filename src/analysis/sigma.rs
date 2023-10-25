@@ -120,8 +120,6 @@ pub async fn run_sigma_analysis(
             sigma_list.push(fr.sigma);
         });
 
-    set_task_completed();
-
     Ok(AnalysisSeries { sigma_list })
 }
 

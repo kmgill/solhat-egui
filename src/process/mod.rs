@@ -106,8 +106,6 @@ pub async fn run_async(
         // The user will likely never see this actually appear on screen
         set_task_status(&t!("tasks.done"), 1, 1);
 
-        set_task_completed();
-
         Ok(RunResultsContainer {
             image: corrected_buffer,
             context: context.parameters,

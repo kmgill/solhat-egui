@@ -12,6 +12,7 @@ result = "Result"
 start = "Start"
 cancel = "Cancel"
 
+
 [histogram]
 logarithmic = "Logarithmic"
 
@@ -31,6 +32,8 @@ normalizing_data = "Normalizing Data"
 saving_to_disk = "Saving to disk"
 saving = "Saving"
 done = "Done"
+starting = "Starting"
+
 
 [dataanalysis]
 raw_values = "Raw Values"
