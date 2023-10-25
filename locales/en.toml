@@ -7,9 +7,13 @@ darkflat = "Dark Flat"
 bias = "Bias"
 hotpixelmap = "Hot Pixel Map"
 analysis = "Analysis"
+result = "Result"
 
 start = "Start"
 cancel = "Cancel"
+
+[histogram]
+logarithmic = "Logarithmic"
 
 [tasks]
 processing_master_flat = "Processing Master Flat"
@@ -79,8 +83,8 @@ use_max_frames = "Use Maximum Frames:"
 minimum_sigma = "Minimum Sigma:"
 maximum_sigma = "Maximum Sigma:"
 include_top_percent = "Include Top Percentage:"
-decorrelated_colors = "Decorrelated Colors"
-limb_dark_correction = "Limb Darkening Correction"
+decorrelated_colors = "Decorrelated Colors:"
+limb_dark_correction = "Limb Darkening Correction:"
 ldc_coefficient = "Limb Darkening Coefficient:"
 ldc_solar_radius = "Solar Disk Radius (Pixels):"
 crop_width = "Crop Width (Pixels):"
@@ -89,6 +93,7 @@ horiz_offset = "Horizontal Offset (Pixels):"
 vert_offset = "Vertical Offset (Pixels):"
 filename_free_text = "Filename Free Text:"
 filename_hint = "Write something here"
+reset = "Reset"
 
 [preview]
 file = "File:"
@@ -102,3 +107,10 @@ frame_count = "Frame Count:"
 instrument = "Instrument:"
 time_of_observation = "Time of Observation (UTC):"
 frame = "Frame: "
+
+[results]
+exposure = "Exposure:"
+gamma = "Gamma"
+output_filename = "Output File:"
+num_images_used = "Number of images used:"
+save_as = "Save As…"

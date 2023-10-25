@@ -14,7 +14,13 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 
+mod histogram;
+mod imageutil;
 mod preview;
+mod resultview;
+
+mod toggle;
+use toggle::toggle;
 
 mod taskstatus;
 use taskstatus::*;
@@ -25,6 +31,7 @@ mod analysis;
 use analysis::*;
 
 mod process;
+use process::RunResultsContainer;
 
 mod state;
 use state::*;
@@ -43,9 +50,15 @@ struct AnalysisResultsContainer {
     series: Option<AnalysisSeries>,
 }
 
+struct ImageResultsContainer {
+    results: Option<RunResultsContainer>,
+}
+
 lazy_static! {
     static ref ANALYSIS_RESULTS: Arc<Mutex<AnalysisResultsContainer>> =
         Arc::new(Mutex::new(AnalysisResultsContainer { series: None }));
+    static ref IMAGE_RESULTS: Arc<Mutex<ImageResultsContainer>> =
+        Arc::new(Mutex::new(ImageResultsContainer { results: None }));
 }
 
 // https://github.com/emilk/egui/discussions/1574
@@ -88,6 +101,9 @@ struct SolHat {
 
     #[serde(skip_serializing, skip_deserializing)]
     analysis_chart: analysis::AnalysisChart,
+
+    #[serde(skip_serializing, skip_deserializing)]
+    result_view: resultview::ResultViewPane,
 }
 
 #[tokio::main]
@@ -234,6 +250,18 @@ impl SolHat {
             }
         }
 
+        if let Ok(mut img_results) = IMAGE_RESULTS.lock() {
+            if let Some(results) = &img_results.results {
+                self.result_view.set_image(results, ctx)?;
+                self.state.window.selected_preview_pane = PreviewPane::Results;
+                img_results.results = None;
+            } else if self.result_view.is_empty()
+                && self.state.window.selected_preview_pane == PreviewPane::Results
+            {
+                self.state.window.selected_preview_pane = PreviewPane::Light;
+            }
+        }
+
         SolHat::ensure_texture_loaded(ctx, &mut self.preview_light, &self.state.light)?;
         SolHat::ensure_texture_loaded(ctx, &mut self.preview_dark, &self.state.dark)?;
         SolHat::ensure_texture_loaded(ctx, &mut self.preview_flat, &self.state.flat)?;
@@ -327,31 +355,46 @@ impl SolHat {
                         PreviewPane::Light,
                         t!("light"),
                     );
-                    ui.selectable_value(
-                        &mut self.state.window.selected_preview_pane,
-                        PreviewPane::Dark,
-                        t!("dark"),
-                    );
-                    ui.selectable_value(
-                        &mut self.state.window.selected_preview_pane,
-                        PreviewPane::Flat,
-                        t!("flat"),
-                    );
-                    ui.selectable_value(
-                        &mut self.state.window.selected_preview_pane,
-                        PreviewPane::DarkFlat,
-                        t!("darkflat"),
-                    );
-                    ui.selectable_value(
-                        &mut self.state.window.selected_preview_pane,
-                        PreviewPane::Bias,
-                        t!("bias"),
-                    );
+                    if self.state.dark.is_some() {
+                        ui.selectable_value(
+                            &mut self.state.window.selected_preview_pane,
+                            PreviewPane::Dark,
+                            t!("dark"),
+                        );
+                    }
+                    if self.state.flat.is_some() {
+                        ui.selectable_value(
+                            &mut self.state.window.selected_preview_pane,
+                            PreviewPane::Flat,
+                            t!("flat"),
+                        );
+                    }
+                    if self.state.darkflat.is_some() {
+                        ui.selectable_value(
+                            &mut self.state.window.selected_preview_pane,
+                            PreviewPane::DarkFlat,
+                            t!("darkflat"),
+                        );
+                    }
+                    if self.state.bias.is_some() {
+                        ui.selectable_value(
+                            &mut self.state.window.selected_preview_pane,
+                            PreviewPane::Bias,
+                            t!("bias"),
+                        );
+                    }
                     if !self.analysis_chart.is_empty() {
                         ui.selectable_value(
                             &mut self.state.window.selected_preview_pane,
                             PreviewPane::Analysis,
                             t!("analysis"),
+                        );
+                    }
+                    if !self.result_view.is_empty() {
+                        ui.selectable_value(
+                            &mut self.state.window.selected_preview_pane,
+                            PreviewPane::Results,
+                            t!("result"),
                         );
                     }
                 });
@@ -365,6 +408,9 @@ impl SolHat {
                     PreviewPane::Bias => self.preview_bias.ui(ui),
                     PreviewPane::Analysis => {
                         self.analysis_chart.ui(ui);
+                    }
+                    PreviewPane::Results => {
+                        self.result_view.ui(ui);
                     }
                 }
             });
@@ -529,7 +575,7 @@ impl SolHat {
     fn options_frame_contents(&mut self, ui: &mut egui::Ui, _ctx: &egui::Context) {
         ui.heading(t!("processoptions.title"));
         egui::Grid::new("process_grid_options")
-            .num_columns(2)
+            .num_columns(3)
             .spacing([40.0, 4.0])
             .striped(true)
             .show(ui, |ui| {
@@ -612,18 +658,12 @@ impl SolHat {
                 ui.add(egui::DragValue::new(&mut self.state.top_percentage).speed(1.0));
                 ui.end_row();
 
-                ui.label("");
-                ui.add(egui::Checkbox::new(
-                    &mut self.state.decorrelated_colors,
-                    t!("processoptions.decorrelated_colors"),
-                ));
+                ui.label(t!("processoptions.decorrelated_colors"));
+                ui.add(toggle(&mut self.state.decorrelated_colors));
                 ui.end_row();
 
-                ui.label("");
-                ui.add(egui::Checkbox::new(
-                    &mut self.state.ld_correction,
-                    t!("processoptions.limb_dark_correction"),
-                ));
+                ui.label(t!("processoptions.limb_dark_correction"));
+                ui.add(toggle(&mut self.state.ld_correction));
                 ui.end_row();
 
                 ui.add_enabled_ui(self.state.ld_correction, |ui| {
@@ -643,12 +683,40 @@ impl SolHat {
                 });
                 ui.end_row();
 
+                let refresh_icon = egui::include_image!("../assets/refresh.svg");
+
                 ui.label(t!("processoptions.crop_width"));
                 ui.add(egui::DragValue::new(&mut self.state.crop_width).speed(1.0));
+                if !self.preview_light.is_empty() {
+                    if ui
+                        .add(egui::Button::image_and_text(
+                            refresh_icon.clone(),
+                            t!("processoptions.reset"),
+                        ))
+                        .clicked()
+                    {
+                        if let Ok(size) = self.preview_light.size() {
+                            self.state.crop_width = size[0];
+                        }
+                    }
+                }
                 ui.end_row();
 
                 ui.label(t!("processoptions.crop_height"));
                 ui.add(egui::DragValue::new(&mut self.state.crop_height).speed(1.0));
+                if self.state.light.is_some() {
+                    if ui
+                        .add(egui::Button::image_and_text(
+                            refresh_icon,
+                            t!("processoptions.reset"),
+                        ))
+                        .clicked()
+                    {
+                        if let Ok(size) = self.preview_light.size() {
+                            self.state.crop_height = size[1];
+                        }
+                    }
+                }
                 ui.end_row();
 
                 ui.label(t!("processoptions.horiz_offset"));
@@ -677,9 +745,11 @@ impl SolHat {
 
         tokio::spawn(async move {
             {
-                process::run_async(output_filename, state_copy)
+                let results = process::run_async(output_filename, state_copy)
                     .await
                     .unwrap();
+
+                IMAGE_RESULTS.lock().unwrap().results = Some(results);
             }
         });
     }

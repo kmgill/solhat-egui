@@ -1,7 +1,8 @@
 use anyhow::Result;
+use sciimg::prelude::Image;
 use solhat::calibrationframe::{CalibrationImage, ComputeMethod};
 // use solhat::anaysis::frame_sigma_analysis_window_size;
-use solhat::context::ProcessContext;
+use solhat::context::{ProcessContext, ProcessParameters};
 use solhat::drizzle::BilinearDrizzle;
 use solhat::framerecord::FrameRecord;
 use solhat::ldcorrect;
@@ -17,7 +18,18 @@ use crate::cancel::*;
 use crate::state::*;
 use crate::taskstatus::*;
 
-pub async fn run_async(output_filename: PathBuf, app_state: ApplicationState) -> Result<()> {
+#[derive(Clone)]
+pub struct RunResultsContainer {
+    pub image: Image,
+    pub context: ProcessParameters,
+    pub output_filename: PathBuf,
+    pub num_frames_used: usize,
+}
+
+pub async fn run_async(
+    output_filename: PathBuf,
+    app_state: ApplicationState,
+) -> Result<RunResultsContainer> {
     info!("Async task started");
 
     let mut context = build_solhat_context(&app_state)?;
@@ -41,7 +53,7 @@ pub async fn run_async(output_filename: PathBuf, app_state: ApplicationState) ->
     /////////////////////////////////////////////////////////////
 
     if context.frame_records.is_empty() {
-        println!("Zero frames to stack. Cannot continue");
+        Err(anyhow!("Zero frames to stack. Cannot continue"))
     } else {
         let drizzle_output = drizzle_stacking(&context)?;
 
@@ -93,11 +105,16 @@ pub async fn run_async(output_filename: PathBuf, app_state: ApplicationState) ->
 
         // The user will likely never see this actually appear on screen
         set_task_status(&t!("tasks.done"), 1, 1);
+
+        set_task_completed();
+
+        Ok(RunResultsContainer {
+            image: corrected_buffer,
+            context: context.parameters,
+            output_filename: output_filename.to_owned(),
+            num_frames_used: context.frame_records.len(),
+        })
     }
-
-    set_task_completed();
-
-    Ok(())
 }
 
 fn build_solhat_context(app_state: &ApplicationState) -> Result<ProcessContext> {

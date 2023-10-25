@@ -1,69 +1,12 @@
+use crate::analysis;
+use crate::imageutil;
+use crate::state::ApplicationState;
 use anyhow::Result;
-use egui::{ColorImage, Ui};
-use itertools::iproduct;
-use rand::{distributions::Alphanumeric, Rng};
-use sciimg::prelude::Image;
+use egui::Ui;
 use solhat::ser::SerFile;
 use solhat::ser::SerFrame;
 
-use crate::analysis;
-use crate::state::ApplicationState;
-
-use egui_plot::{Legend, Line, LineStyle, Plot, PlotPoints};
-use epaint::Color32;
-
-#[derive(Default, Debug, Copy, Clone)]
-struct Bin {
-    count: u32,
-}
-
-#[derive(Default, Debug, Clone)]
-struct Histogram {
-    num_bins: usize,
-    min_value: f32,
-    max_value: f32,
-    bins: Vec<Bin>,
-}
-
-impl Histogram {
-    pub fn new(num_bins: usize, min_value: f32, max_value: f32) -> Self {
-        Histogram {
-            num_bins,
-            min_value,
-            max_value,
-            bins: (0..num_bins).map(|_| Bin::default()).collect(),
-        }
-    }
-
-    fn value_to_bin(&self, v: f32) -> usize {
-        (self.num_bins as f32 * ((v - self.min_value) / (self.max_value - self.min_value))).floor()
-            as usize
-    }
-
-    pub fn compute_from_image(&mut self, img: &Image) {
-        iproduct!(0..img.height, 0..img.width).for_each(|(y, x)| {
-            let v = img.get_band(0).get(x, y);
-            let bin_no = self.value_to_bin(v);
-            self.bins[bin_no].count += 1;
-        });
-    }
-
-    pub fn to_line(&self) -> Line {
-        let points: PlotPoints = self
-            .bins
-            .clone()
-            .into_iter()
-            .enumerate()
-            .map(|(i, b)| [i as f64, b.count as f64])
-            .collect();
-
-        Line::new(points)
-            .color(Color32::LIGHT_BLUE)
-            .style(LineStyle::Solid)
-            .fill(0.0)
-            .width(2.0)
-    }
-}
+use crate::histogram::Histogram;
 
 pub struct SerPreviewPane {
     texture_handle: Option<egui::TextureHandle>,
@@ -79,7 +22,7 @@ impl Default for SerPreviewPane {
         Self {
             texture_handle: None,
             ser_file: None,
-            texture_name: SerPreviewPane::gen_random_texture_name(),
+            texture_name: imageutil::gen_random_texture_name(),
             histogram: None,
             show_frame_no: 0,
             animate: false,
@@ -92,45 +35,10 @@ impl SerPreviewPane {
         self.texture_handle.is_none()
     }
 
-    // https://stackoverflow.com/questions/54275459/how-do-i-create-a-random-string-by-sampling-from-alphanumeric-characters
-    fn gen_random_texture_name() -> String {
-        rand::thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(7)
-            .map(char::from)
-            .collect()
-    }
-
-    fn ser_frame_to_retained_image(ser_frame: &Image) -> ColorImage {
-        let mut copied = ser_frame.clone();
-        let size: [usize; 2] = [copied.width as _, copied.height as _];
-        copied.normalize_to_8bit();
-        let mut rgb: Vec<u8> = Vec::with_capacity(copied.height * copied.width * 3);
-        iproduct!(0..copied.height, 0..copied.width).for_each(|(y, x)| {
-            let (r, g, b) = if copied.num_bands() == 1 {
-                (
-                    copied.get_band(0).get(x, y),
-                    copied.get_band(0).get(x, y),
-                    copied.get_band(0).get(x, y),
-                )
-            } else {
-                (
-                    copied.get_band(0).get(x, y),
-                    copied.get_band(1).get(x, y),
-                    copied.get_band(2).get(x, y),
-                )
-            };
-            rgb.push(r as u8);
-            rgb.push(g as u8);
-            rgb.push(b as u8);
-        });
-        ColorImage::from_rgb(size, &rgb)
-    }
-
     fn update_texture(&mut self, ctx: &egui::Context) -> Result<()> {
         if let Some(ser_file) = &self.ser_file {
             let first_image: SerFrame = ser_file.get_frame(self.show_frame_no)?;
-            let cimage = SerPreviewPane::ser_frame_to_retained_image(&first_image.buffer);
+            let cimage = imageutil::sciimg_to_color_image(&first_image.buffer);
             self.texture_handle =
                 Some(ctx.load_texture(&self.texture_name, cimage, Default::default()));
             Ok(())
@@ -169,7 +77,7 @@ impl SerPreviewPane {
     pub fn threshold_test(&mut self, ui: &egui::Ui, state: &ApplicationState) -> Result<()> {
         if self.ser_file.is_some() {
             let result = analysis::threshold::run_thresh_test(&state.to_parameters())?;
-            let cimage = SerPreviewPane::ser_frame_to_retained_image(&result);
+            let cimage = imageutil::sciimg_to_color_image(&result);
             let texture = ui
                 .ctx()
                 .load_texture(&self.texture_name, cimage, Default::default());
@@ -230,20 +138,10 @@ impl SerPreviewPane {
                             ui.end_row();
                         });
                 });
-                let plot = Plot::new("histogram")
-                    .legend(Legend::default())
-                    .y_axis_width(4)
-                    .show_axes(false)
-                    .allow_scroll(false)
-                    .allow_boxed_zoom(false)
-                    .allow_drag(false)
-                    .allow_zoom(false)
-                    .show_grid(true);
-                plot.show(ui, |plot_ui| {
-                    if let Some(histogram) = &self.histogram {
-                        plot_ui.line(histogram.to_line());
-                    }
-                });
+
+                if let Some(histogram) = &mut self.histogram {
+                    histogram.ui(ui);
+                }
             });
         }
     }

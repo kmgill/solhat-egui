@@ -19,6 +19,7 @@ pub enum PreviewPane {
     DarkFlat,
     Bias,
     Analysis,
+    Results,
 }
 
 #[derive(Default, Deserialize, Serialize, Clone)]
