@@ -1,10 +1,29 @@
-use std::path::PathBuf;
-
 use crate::histogram::Histogram;
 use crate::imageutil;
 use crate::process::RunResultsContainer;
+use crate::toggle::toggle;
 use anyhow::Result;
 use egui::Ui;
+use sciimg::prelude::Image;
+use sciimg::unsharp::RgbImageUnsharpMask;
+use std::fmt;
+use std::path::PathBuf;
+
+#[derive(Clone, Eq, PartialEq)]
+enum ZoomType {
+    Fit,
+    FullSize,
+}
+
+impl fmt::Display for ZoomType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ZoomType::Fit => f.write_str(&t!("results.shrink_to_fit")),
+            ZoomType::FullSize => f.write_str(&t!("results.full_size")),
+        }
+        // write!(f, "{:?}", self)
+    }
+}
 
 pub struct ResultViewPane {
     texture_handle: Option<egui::TextureHandle>,
@@ -13,6 +32,10 @@ pub struct ResultViewPane {
     histogram: Histogram,
     exposure: f64,
     gamma: f64,
+    unsharp_mask: bool,
+    unsharp_sigma: f64,
+    unsharp_amount: f64,
+    zoom: ZoomType,
 }
 
 impl Default for ResultViewPane {
@@ -24,6 +47,10 @@ impl Default for ResultViewPane {
             histogram: Histogram::new(1500, 0.0, 65536.0),
             exposure: 0.0,
             gamma: 1.0,
+            unsharp_mask: false,
+            unsharp_amount: 1.0,
+            unsharp_sigma: 1.3,
+            zoom: ZoomType::Fit,
         }
     }
 }
@@ -43,11 +70,22 @@ impl ResultViewPane {
         }
     }
 
+    fn apply_filters(&self, image: &Image) -> Image {
+        let mut image_adjusted = image.clone();
+
+        image_adjusted.levels_with_gamma(0.0, 1.0 - self.exposure as f32, 1.0 / self.gamma as f32);
+
+        if self.unsharp_mask {
+            image_adjusted.unsharp_mask(self.unsharp_sigma as f32, self.unsharp_amount as f32);
+        }
+
+        image_adjusted
+    }
+
     fn update_texture(&mut self, ctx: &egui::Context) -> Result<()> {
         if let Some(results) = &self.results {
-            let mut image_adjusted = results.image.clone();
+            let image_adjusted = self.apply_filters(&results.image);
 
-            image_adjusted.levels_with_gamma(0.0, 1.0 - self.exposure as f32, self.gamma as f32);
             let cimage = imageutil::sciimg_to_color_image(&image_adjusted);
             self.texture_handle =
                 Some(ctx.load_texture(&self.texture_name, cimage, Default::default()));
@@ -66,27 +104,30 @@ impl ResultViewPane {
     }
 
     fn options_ui(&mut self, ui: &mut Ui) -> Result<()> {
+        // if let Some(results) = &self.results {
+        //     ui.horizontal(|ui| {
+        //         ui.label(t!("results.output_filename"));
+
+        //         ui.label(results.output_filename.to_string_lossy().as_ref());
+        //     });
+        // }
+
+        // if let Some(results) = &self.results {
+        //     ui.horizontal(|ui| {
+        //         ui.label(t!("results.num_images_used"));
+        //         ui.label(results.num_frames_used.to_string());
+        //     });
+        // }
+
+        let refresh_icon = egui::include_image!("../assets/refresh.svg");
+
         ui.horizontal(|ui| {
-            ui.vertical_centered(|ui| {
-                if let Some(results) = &self.results {
-                    ui.horizontal(|ui| {
-                        ui.label(t!("results.output_filename"));
-
-                        ui.label(results.output_filename.to_string_lossy().as_ref());
-                    });
-                }
-
+            ui.vertical(|ui| {
                 egui::Grid::new("metadata")
-                    .num_columns(2)
+                    .num_columns(3)
                     .spacing([40.0, 4.0])
                     .striped(true)
                     .show(ui, |ui| {
-                        if let Some(results) = &self.results {
-                            ui.label(t!("results.num_images_used"));
-                            ui.label(results.num_frames_used.to_string());
-                            ui.end_row();
-                        }
-
                         ui.label(t!("results.exposure"));
                         if ui
                             .add(egui::Slider::new(&mut self.exposure, 0.01..=0.99))
@@ -94,16 +135,80 @@ impl ResultViewPane {
                         {
                             self.update_texture(ui.ctx()).unwrap();
                         }
+                        if ui
+                            .add(egui::Button::image_and_text(
+                                refresh_icon.clone(),
+                                t!("results.reset"),
+                            ))
+                            .clicked()
+                        {
+                            self.exposure = 0.0;
+                            self.update_texture(ui.ctx()).unwrap();
+                        }
+
                         ui.end_row();
 
                         ui.label(t!("results.gamma"));
                         if ui
-                            .add(egui::Slider::new(&mut self.gamma, 0.0..=10.0))
+                            .add(egui::Slider::new(&mut self.gamma, 0.05..=10.0))
+                            .changed()
+                        {
+                            self.update_texture(ui.ctx()).unwrap();
+                        }
+                        if ui
+                            .add(egui::Button::image_and_text(
+                                refresh_icon.clone(),
+                                t!("results.reset"),
+                            ))
+                            .clicked()
+                        {
+                            self.gamma = 1.0;
+                            self.update_texture(ui.ctx()).unwrap();
+                        }
+                        ui.end_row();
+
+                        ui.label(t!("results.zoom"));
+
+                        egui::ComboBox::from_label("")
+                            .selected_text(format!("{}", self.zoom))
+                            .show_ui(ui, |ui| {
+                                ui.style_mut().wrap = Some(false);
+                                ui.set_min_width(60.0);
+                                ui.selectable_value(
+                                    &mut self.zoom,
+                                    ZoomType::Fit,
+                                    t!("results.shrink_to_fit"),
+                                );
+                                ui.selectable_value(
+                                    &mut self.zoom,
+                                    ZoomType::FullSize,
+                                    t!("results.full_size"),
+                                );
+                            });
+
+                        ui.end_row();
+                        ui.label(t!("results.unsharp_masking"));
+                        if ui.add(toggle(&mut self.unsharp_mask)).changed() {
+                            self.update_texture(ui.ctx()).unwrap();
+                        }
+                        ui.end_row();
+
+                        ui.label(t!("results.sigma"));
+                        if ui
+                            .add(egui::Slider::new(&mut self.unsharp_sigma, 0.05..=10.0))
                             .changed()
                         {
                             self.update_texture(ui.ctx()).unwrap();
                         }
                         ui.end_row();
+
+                        ui.label(t!("results.amount"));
+                        if ui
+                            .add(egui::Slider::new(&mut self.unsharp_amount, 0.0..=100.0))
+                            .changed()
+                        {
+                            self.update_texture(ui.ctx()).unwrap();
+                        }
                     });
             });
             self.histogram.ui(ui);
@@ -125,7 +230,14 @@ impl ResultViewPane {
     pub fn ui(&mut self, ui: &mut Ui) {
         self.options_ui(ui).unwrap();
         if let Some(handle) = &self.texture_handle {
-            ui.add(egui::Image::from_texture(handle).shrink_to_fit())
+            //egui::ScrollArea::both().show(ui, |ui| {
+
+            egui::ScrollArea::both().show(ui, |ui| {
+                let image = egui::Image::from_texture(handle);
+                ui.add(match self.zoom {
+                    ZoomType::Fit => image.shrink_to_fit(),
+                    ZoomType::FullSize => image,
+                })
                 .context_menu(|ui| {
                     if ui.button(t!("results.save_as")).clicked() {
                         let output_path = self.get_output_path();
@@ -141,13 +253,7 @@ impl ResultViewPane {
                             println!("Saving To Path: {:?}", path);
 
                             if let Some(results) = &self.results {
-                                let mut image_adjusted = results.image.clone();
-
-                                image_adjusted.levels_with_gamma(
-                                    0.0,
-                                    1.0 - self.exposure as f32,
-                                    self.gamma as f32,
-                                );
+                                let image_adjusted = self.apply_filters(&results.image);
 
                                 image_adjusted
                                     .save(path.to_string_lossy().as_ref())
@@ -161,6 +267,7 @@ impl ResultViewPane {
                         }
                     }
                 });
+            });
         }
     }
 }

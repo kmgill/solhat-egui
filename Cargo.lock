@@ -3204,7 +3204,7 @@ dependencies = [
 [[package]]
 name = "sciimg"
 version = "0.5.0"
-source = "git+https://github.com/MarsRaw/sciimg.git?branch=kmgill_develop#949fec43cc751edbaba1f4cfe92eb8287e082b94"
+source = "git+https://github.com/MarsRaw/sciimg.git?branch=kmgill_develop#3029dbc0539dd62b833b0d14183b55c687f947d0"
 dependencies = [
  "anyhow",
  "chrono",

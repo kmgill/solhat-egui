@@ -12,7 +12,6 @@ use solhat::target::Target;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::time::Duration;
 
 mod histogram;
 mod imageutil;
@@ -116,8 +115,14 @@ async fn main() -> Result<(), eframe::Error> {
 
     let mut options = eframe::NativeOptions {
         icon_data: Some(load_icon()),
-        initial_window_size: Some(Vec2 { x: 885.0, y: 650.0 }),
-        min_window_size: Some(Vec2 { x: 885.0, y: 650.0 }),
+        initial_window_size: Some(Vec2 {
+            x: 1740.0,
+            y: 950.0,
+        }),
+        min_window_size: Some(Vec2 {
+            x: 1470.0,
+            y: 840.0,
+        }),
         resizable: true,
         transparent: true,
         vsync: true,
@@ -297,6 +302,16 @@ impl SolHat {
                 match get_task_status() {
                     Some(TaskStatus::TaskPercentage(task_name, len, cnt)) => {
                         ui.vertical_centered(|ui| {
+                            ui.spacing_mut().button_padding = Vec2::new(18.0, 14.0);
+                            let cancel_icon = egui::include_image!("../assets/cancel.svg");
+                            if ui
+                                .add(egui::Button::image_and_text(cancel_icon, t!("cancel")))
+                                .clicked()
+                            {
+                                cancel::set_request_cancel();
+                                ctx.request_repaint();
+                            }
+
                             ui.horizontal(|ui| {
                                 ui.monospace(task_name);
                                 ui.spinner();
@@ -308,16 +323,6 @@ impl SolHat {
                                 0.0
                             };
                             ui.add(egui::ProgressBar::new(pct).show_percentage());
-
-                            ui.spacing_mut().button_padding = Vec2::new(18.0, 14.0);
-                            let cancel_icon = egui::include_image!("../assets/cancel.svg");
-                            if ui
-                                .add(egui::Button::image_and_text(cancel_icon, t!("cancel")))
-                                .clicked()
-                            {
-                                cancel::set_request_cancel();
-                                ctx.request_repaint();
-                            }
                         });
                     }
                     None => {
@@ -420,14 +425,6 @@ impl SolHat {
                 }
             });
         });
-
-        egui::TopBottomPanel::bottom("bottom_panel")
-            .resizable(true)
-            .show(ctx, |_ui| {
-                // egui::ScrollArea::vertical().show(ui, |ui| {
-                //     // TODO: Log viewer goes here
-                // });
-            });
 
         Ok(())
     }
