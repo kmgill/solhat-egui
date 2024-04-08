@@ -11,6 +11,7 @@ result = "Result"
 
 start = "Start"
 cancel = "Cancel"
+theme = "Theme:"
 
 
 [histogram]

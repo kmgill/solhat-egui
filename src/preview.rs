@@ -1,11 +1,12 @@
 use crate::analysis;
 use crate::imageutil;
 use crate::state::ApplicationState;
+use anyhow::Error;
 use anyhow::Result;
 use egui::Ui;
 use solhat::ser::SerFile;
 use solhat::ser::SerFrame;
-
+// use std::{error::Error, fmt};
 use crate::histogram::Histogram;
 
 pub struct SerPreviewPane {
@@ -43,7 +44,7 @@ impl SerPreviewPane {
                 Some(ctx.load_texture(&self.texture_name, cimage, Default::default()));
             Ok(())
         } else {
-            Err(anyhow!("No ser file loaded"))
+            Err(Error::msg("No ser file loaded"))
         }
     }
 
@@ -55,7 +56,7 @@ impl SerPreviewPane {
             self.histogram = Some(histogram);
             Ok(())
         } else {
-            Err(anyhow!("No ser file loaded"))
+            Err(Error::msg("No ser file loaded"))
         }
     }
 
@@ -84,7 +85,7 @@ impl SerPreviewPane {
             self.texture_handle = Some(texture);
             Ok(())
         } else {
-            Err(anyhow!("Cannot perform threshtest: No image assigned"))
+            Err(Error::msg("Cannot perform threshtest: No image assigned"))
         }
     }
 
@@ -92,7 +93,7 @@ impl SerPreviewPane {
         if let Some(texture_handle) = &self.texture_handle {
             Ok(texture_handle.size())
         } else {
-            Err(anyhow!("Texture not loaded"))
+            Err(Error::msg("Texture not loaded"))
         }
     }
 

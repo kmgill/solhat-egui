@@ -12,16 +12,15 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 use anyhow::Result;
-use eframe::egui;
-use egui::Pos2;
+use eframe::{egui, glow};
 use egui::Vec2;
 use egui_extras::install_image_loaders;
 use serde::{Deserialize, Serialize};
 use solhat::drizzle::Scale;
 use solhat::target::Target;
 
-use analysis::*;
 use analysis::sigma::AnalysisSeries;
+use analysis::*;
 use process::RunResultsContainer;
 use state::*;
 use taskstatus::*;
@@ -32,9 +31,9 @@ mod imageutil;
 mod preview;
 mod resultview;
 
-mod toggle;
-mod taskstatus;
 mod cancel;
+mod taskstatus;
+mod toggle;
 
 mod analysis;
 mod process;
@@ -58,7 +57,7 @@ lazy_static! {
 }
 
 // https://github.com/emilk/egui/discussions/1574
-pub(crate) fn load_icon() -> eframe::IconData {
+pub(crate) fn load_icon() -> egui::IconData {
     let (icon_rgba, icon_width, icon_height) = {
         let icon = include_bytes!("../assets/solhat_icon_32x32.png");
         let image = image::load_from_memory(icon)
@@ -69,7 +68,7 @@ pub(crate) fn load_icon() -> eframe::IconData {
         (rgba, width, height)
     };
 
-    eframe::IconData {
+    egui::IconData {
         rgba: icon_rgba,
         width: icon_width,
         height: icon_height,
@@ -100,6 +99,9 @@ struct SolHat {
 
     #[serde(skip_serializing, skip_deserializing)]
     result_view: resultview::ResultViewPane,
+
+    #[serde(skip_serializing, skip_deserializing)]
+    image_loaders_installed: bool,
 }
 
 #[tokio::main]
@@ -111,17 +113,11 @@ async fn main() -> Result<(), eframe::Error> {
     });
 
     let mut options = eframe::NativeOptions {
-        icon_data: Some(load_icon()),
-        initial_window_size: Some(Vec2 {
-            x: 1740.0,
-            y: 950.0,
-        }),
-        min_window_size: Some(Vec2 {
-            x: 1470.0,
-            y: 840.0,
-        }),
-        resizable: true,
-        transparent: true,
+        viewport: egui::ViewportBuilder::default()
+            .with_icon(load_icon())
+            .with_inner_size(Vec2::new(1740.0, 950.0))
+            .with_min_inner_size(Vec2::new(1470.0, 840.0))
+            .with_resizable(true),
         vsync: true,
         multisampling: 0,
         depth_buffer: 0,
@@ -132,12 +128,7 @@ async fn main() -> Result<(), eframe::Error> {
     // If the config file (literally a serialized version of the last run window state) errors on read
     // or doesn't exist, we'll just ignore it and start from scratch.
     let solhat = if let Ok(app_state) = ApplicationState::load_from_userhome() {
-        options.initial_window_pos = Some(Pos2::new(
-            app_state.window.window_pos_x as f32,
-            app_state.window.window_pos_y as f32,
-        ));
-
-        options.initial_window_size = Some(Vec2::new(
+        options.viewport.inner_size = Some(Vec2::new(
             app_state.window.window_width as f32,
             app_state.window.window_height as f32,
         ));
@@ -156,9 +147,8 @@ async fn main() -> Result<(), eframe::Error> {
 }
 
 impl eframe::App for SolHat {
-    fn on_close_event(&mut self) -> bool {
+    fn on_exit(&mut self, _gl: Option<&glow::Context>) {
         self.state.save_to_userhome();
-        true
     }
 
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
@@ -236,9 +226,15 @@ impl SolHat {
     }
 
     fn on_update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) -> Result<()> {
-        install_image_loaders(ctx);
-        //ctx.set_pixels_per_point(1.0);
-        // self.load_thumbnail(false);
+        if !self.image_loaders_installed {
+            install_image_loaders(ctx);
+            self.image_loaders_installed = true;
+        }
+
+        match self.state.window.theme {
+            VisualTheme::Dark => ctx.set_visuals(egui::Visuals::dark()),
+            VisualTheme::Light => ctx.set_visuals(egui::Visuals::light()),
+        }
 
         if let Ok(mut results) = ANALYSIS_RESULTS.lock() {
             if results.series.is_some() {
@@ -344,7 +340,22 @@ impl SolHat {
                 ui.separator();
 
                 ui.horizontal_wrapped(|ui| {
-                    egui::widgets::global_dark_light_mode_switch(ui);
+                    ui.label(t!("theme"));
+                    let cb = egui::ComboBox::new("VisualTheme", "")
+                        .width(0_f32)
+                        .selected_text(self.state.window.theme.as_str());
+                    cb.show_ui(ui, |ui| {
+                        ui.selectable_value(
+                            &mut self.state.window.theme,
+                            VisualTheme::Dark,
+                            "Dark",
+                        );
+                        ui.selectable_value(
+                            &mut self.state.window.theme,
+                            VisualTheme::Light,
+                            "Light",
+                        );
+                    });
                     ui.separator();
                     ui.hyperlink("https://github.com/kmgill/solhat");
                 });
@@ -685,36 +696,35 @@ impl SolHat {
 
                 ui.label(t!("processoptions.crop_width"));
                 ui.add(egui::DragValue::new(&mut self.state.crop_width).speed(1.0));
-                if !self.preview_light.is_empty() {
-                    if ui
+                if !self.preview_light.is_empty()
+                    && ui
                         .add(egui::Button::image_and_text(
                             refresh_icon.clone(),
                             t!("processoptions.reset"),
                         ))
                         .clicked()
-                    {
-                        if let Ok(size) = self.preview_light.size() {
-                            self.state.crop_width = size[0];
-                        }
+                {
+                    if let Ok(size) = self.preview_light.size() {
+                        self.state.crop_width = size[0];
                     }
                 }
                 ui.end_row();
 
                 ui.label(t!("processoptions.crop_height"));
                 ui.add(egui::DragValue::new(&mut self.state.crop_height).speed(1.0));
-                if self.state.light.is_some() {
-                    if ui
+                if self.state.light.is_some()
+                    && ui
                         .add(egui::Button::image_and_text(
                             refresh_icon,
                             t!("processoptions.reset"),
                         ))
                         .clicked()
-                    {
-                        if let Ok(size) = self.preview_light.size() {
-                            self.state.crop_height = size[1];
-                        }
+                {
+                    if let Ok(size) = self.preview_light.size() {
+                        self.state.crop_height = size[1];
                     }
                 }
+
                 ui.end_row();
 
                 ui.label(t!("processoptions.horiz_offset"));

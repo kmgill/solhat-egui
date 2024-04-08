@@ -23,15 +23,29 @@ pub enum PreviewPane {
     Results,
 }
 
+#[derive(Debug, Eq, PartialEq, Deserialize, Serialize, Clone, Default)]
+pub enum VisualTheme {
+    Light,
+    #[default]
+    Dark,
+}
+
+impl VisualTheme {
+    pub fn as_str(&self) -> &'static str {
+        match *self {
+            VisualTheme::Dark => "Dark",
+            VisualTheme::Light => "Light",
+        }
+    }
+}
+
 #[derive(Default, Deserialize, Serialize, Clone)]
 pub struct WindowState {
     pub last_opened_folder: Option<PathBuf>,
-    pub window_pos_x: usize,
-    pub window_pos_y: usize,
     pub window_width: usize,
     pub window_height: usize,
     pub fullscreen: bool,
-    pub theme: String,
+    pub theme: VisualTheme,
     pub selected_preview_pane: PreviewPane,
 }
 
@@ -53,17 +67,11 @@ impl WindowState {
         };
     }
 
-    pub fn update_from_window_info(&mut self, _ctx: &egui::Context, frame: &mut eframe::Frame) {
-        if let Some(position) = frame.info().window_info.position {
-            self.window_pos_x = position.x as usize;
-            self.window_pos_y = position.y as usize;
+    pub fn update_from_window_info(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        if let Some(dimension) = ctx.input(|i| i.viewport().inner_rect) {
+            self.window_width = dimension.width() as usize;
+            self.window_height = dimension.height() as usize;
         }
-
-        let dimension = frame.info().window_info.size;
-        self.window_width = dimension.x as usize;
-        self.window_height = dimension.y as usize;
-
-        self.fullscreen = frame.info().window_info.fullscreen;
     }
 }
 

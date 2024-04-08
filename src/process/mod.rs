@@ -1,9 +1,8 @@
-use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
-
-use anyhow::Result;
+use anyhow::{Error, Result};
 use sciimg::prelude::Image;
 use solhat::calibrationframe::{CalibrationImage, ComputeMethod};
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 // use solhat::anaysis::frame_sigma_analysis_window_size;
 use solhat::context::{ProcessContext, ProcessParameters};
 use solhat::drizzle::BilinearDrizzle;
@@ -54,7 +53,7 @@ pub async fn run_async(
     /////////////////////////////////////////////////////////////
 
     if context.frame_records.is_empty() {
-        Err(anyhow!("Zero frames to stack. Cannot continue"))
+        Err(Error::msg("Zero frames to stack. Cannot continue"))
     } else {
         let drizzle_output = drizzle_stacking(&context)?;
 

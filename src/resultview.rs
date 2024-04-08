@@ -2,7 +2,7 @@ use crate::histogram::Histogram;
 use crate::imageutil;
 use crate::process::RunResultsContainer;
 use crate::toggle::toggle;
-use anyhow::Result;
+use anyhow::{Error, Result};
 use egui::Ui;
 use sciimg::prelude::Image;
 use sciimg::unsharp::RgbImageUnsharpMask;
@@ -66,7 +66,7 @@ impl ResultViewPane {
             self.histogram.compute_from_image(&results.image);
             Ok(())
         } else {
-            Err(anyhow!("No ser file loaded"))
+            Err(Error::msg("No ser file loaded"))
         }
     }
 
@@ -91,7 +91,7 @@ impl ResultViewPane {
                 Some(ctx.load_texture(&self.texture_name, cimage, Default::default()));
             Ok(())
         } else {
-            Err(anyhow!("No ser file loaded"))
+            Err(Error::msg("No ser file loaded"))
         }
     }
 

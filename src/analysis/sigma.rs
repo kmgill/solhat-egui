@@ -1,4 +1,3 @@
-use std::ops::ControlFlow;
 use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
@@ -13,7 +12,7 @@ use crate::state::ApplicationState;
 use crate::taskstatus::*;
 
 ///////////////////////////////////////////////////////
-// Sigma Anaysis
+// Sigma Analysis
 ///////////////////////////////////////////////////////
 
 lazy_static! {
@@ -91,24 +90,24 @@ pub async fn run_sigma_analysis(
     let frame_count = context.frame_records.len();
     *COUNTER.lock().unwrap() = 0;
     set_task_status(&t!("tasks.frame_analysis"), frame_count, 0);
-    let frame_records = match frame_analysis_window_size(
-        &context,
-        context.parameters.analysis_window_size,
-        move |fr| {
-            info!(
-                "frame_sigma_analysis(): Frame processed with sigma {}",
-                fr.sigma
-            );
 
-            let mut c = COUNTER.lock().unwrap();
-            *c += 1;
-            set_task_status(&t!("tasks.frame_analysis"), frame_count, *c);
-            // check_cancel_status(&sender)
-        },
-    ) {
-        Ok(frame_records) => frame_records,
-        Err(why) => return Err(cancel::TaskCompletion::Error(format!("Error: {:?}", why))),
+    let f = move |fr: &FrameRecord| {
+        info!(
+            "frame_sigma_analysis(): Frame processed with sigma {}",
+            fr.sigma
+        );
+
+        let mut c = COUNTER.lock().unwrap();
+        *c += 1;
+        set_task_status(&t!("tasks.frame_analysis"), frame_count, *c);
+        // check_cancel_status(&sender)
     };
+
+    let frame_records =
+        match frame_analysis_window_size(&context, context.parameters.analysis_window_size, f) {
+            Ok(frame_records) => frame_records,
+            Err(why) => return Err(cancel::TaskCompletion::Error(format!("Error: {:?}", why))),
+        };
 
     let mut sigma_list: Vec<f64> = vec![];
     frame_records

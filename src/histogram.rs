@@ -73,7 +73,7 @@ impl Histogram {
             .legend(Legend::default())
             .y_axis_width(4)
             .show_axes(false)
-            .auto_bounds_y()
+            .auto_bounds(egui::Vec2b::new(true, true))
             .allow_scroll(false)
             .allow_boxed_zoom(false)
             .allow_drag(false)
