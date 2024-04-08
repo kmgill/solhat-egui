@@ -1,10 +1,12 @@
+use std::ops::ControlFlow;
+use std::sync::{Arc, Mutex};
+
 use anyhow::Result;
 use rayon::prelude::*;
 use sciimg::{max, min, quality};
 use solhat::calibrationframe::CalibrationImage;
 use solhat::context::ProcessContext;
 use solhat::framerecord::FrameRecord;
-use std::sync::{Arc, Mutex};
 
 use crate::cancel::{self, *};
 use crate::state::ApplicationState;
@@ -137,28 +139,37 @@ where
         .frame_records
         .par_iter()
         .map(|fr| {
-            let mut fr_copy = fr.clone();
-            let frame = fr.get_frame(context).expect("");
+            // If the process has been cancelled we will return a None. The rest will
+            // cycle through, but keep returning Nones.
+            if !is_cancel_requested() {
+                let mut fr_copy = fr.clone();
+                let frame = fr.get_frame(context).expect("");
 
-            fr_copy.offset = frame
-                .buffer
-                .calc_center_of_mass_offset(context.parameters.obj_detection_threshold as f32, 0);
+                fr_copy.offset = frame.buffer.calc_center_of_mass_offset(
+                    context.parameters.obj_detection_threshold as f32,
+                    0,
+                );
 
-            let x = frame.buffer.width / 2 + fr_copy.offset.h as usize;
-            let y = frame.buffer.height / 2 + fr_copy.offset.v as usize;
+                let x = frame.buffer.width / 2 + fr_copy.offset.h as usize;
+                let y = frame.buffer.height / 2 + fr_copy.offset.v as usize;
 
-            // If monochrome, this will perform the analysis on the only band. If RGB, we perform analysis
-            // on the red band.
-            fr_copy.sigma = quality::get_point_quality_estimation_on_buffer(
-                frame.buffer.get_band(0),
-                window_size,
-                x,
-                y,
-            ) as f64;
+                // If monochrome, this will perform the analysis on the only band. If RGB, we perform analysis
+                // on the red band.
+                fr_copy.sigma = quality::get_point_quality_estimation_on_buffer(
+                    frame.buffer.get_band(0),
+                    window_size,
+                    x,
+                    y,
+                ) as f64;
 
-            on_frame_checked(&fr_copy);
-            fr_copy
+                on_frame_checked(&fr_copy);
+                Some(fr_copy)
+            } else {
+                None
+            }
         })
+        .filter(|fr| fr.is_some())
+        .map(|fr| fr.unwrap())
         .collect();
     Ok(frame_records)
 }

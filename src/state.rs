@@ -1,14 +1,15 @@
+use std::fs;
+use std::fs::File;
+use std::io::Write;
+use std::path::Path;
+use std::path::PathBuf;
+
 use anyhow::{anyhow, Result};
 use eframe::egui;
 use serde::{Deserialize, Serialize};
 use solhat::context::*;
 use solhat::drizzle::Scale;
 use solhat::target::Target;
-use std::fs;
-use std::fs::File;
-use std::io::Write;
-use std::path::Path;
-use std::path::PathBuf;
 
 #[derive(Default, Deserialize, Serialize, Eq, PartialEq, Clone)]
 pub enum PreviewPane {
@@ -94,6 +95,7 @@ pub struct ApplicationState {
     pub crop_height: usize,
     pub vert_offset: i32,
     pub horiz_offset: i32,
+    pub save_masters: bool,
     pub window: WindowState,
 }
 
@@ -127,6 +129,7 @@ impl Default for ApplicationState {
             crop_width: 0,
             vert_offset: 0,
             horiz_offset: 0,
+            save_masters: false,
         }
     }
 }

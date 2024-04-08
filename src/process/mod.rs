@@ -1,3 +1,6 @@
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
+
 use anyhow::Result;
 use sciimg::prelude::Image;
 use solhat::calibrationframe::{CalibrationImage, ComputeMethod};
@@ -10,8 +13,6 @@ use solhat::limiting::frame_limit_determinate;
 // use solhat::offsetting::frame_offset_analysis;
 use solhat::rotation::frame_rotation_analysis;
 use solhat::stacking::process_frame_stacking;
-use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
 
 use crate::analysis::sigma::frame_analysis_window_size;
 use crate::cancel::*;
@@ -125,6 +126,14 @@ fn build_solhat_context(app_state: &ApplicationState) -> Result<ProcessContext> 
     } else {
         CalibrationImage::new_empty()
     };
+    if app_state.save_masters {
+        if let Some(mstr) = &master_flat.image {
+            mstr.save(&format!(
+                "{}/master_flat.tif",
+                app_state.output_dir.clone().unwrap_or("".to_string())
+            ))?;
+        }
+    }
 
     check_cancel_status()?;
 
@@ -136,6 +145,15 @@ fn build_solhat_context(app_state: &ApplicationState) -> Result<ProcessContext> 
         CalibrationImage::new_empty()
     };
 
+    if app_state.save_masters {
+        if let Some(mstr) = &master_darkflat.image {
+            mstr.save(&format!(
+                "{}/master_darkflat.tif",
+                app_state.output_dir.clone().unwrap_or("".to_string())
+            ))?;
+        }
+    }
+
     check_cancel_status()?;
 
     set_task_status(&t!("tasks.processing_master_dark"), 0, 0);
@@ -146,6 +164,15 @@ fn build_solhat_context(app_state: &ApplicationState) -> Result<ProcessContext> 
         CalibrationImage::new_empty()
     };
 
+    if app_state.save_masters {
+        if let Some(mstr) = &master_dark.image {
+            mstr.save(&format!(
+                "{}/master_dark.tif",
+                app_state.output_dir.clone().unwrap_or("".to_string())
+            ))?;
+        }
+    }
+
     check_cancel_status()?;
 
     set_task_status(&t!("tasks.processing_master_bias"), 0, 0);
@@ -155,6 +182,15 @@ fn build_solhat_context(app_state: &ApplicationState) -> Result<ProcessContext> 
     } else {
         CalibrationImage::new_empty()
     };
+
+    if app_state.save_masters {
+        if let Some(mstr) = &master_bias.image {
+            mstr.save(&format!(
+                "{}/master_bias.tif",
+                app_state.output_dir.clone().unwrap_or("".to_string())
+            ))?;
+        }
+    }
 
     check_cancel_status()?;
 
@@ -252,6 +288,7 @@ fn drizzle_stacking(context: &ProcessContext) -> Result<BilinearDrizzle> {
 
     let counter = Arc::new(Mutex::new(0));
 
+    // TODO: Implement cancel detection within solhat core.
     let drizzle_output = process_frame_stacking(context, move |_fr| {
         info!("process_frame_stacking(): Frame processed.");
         // check_cancel_status(&sender);

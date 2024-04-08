@@ -97,6 +97,7 @@ vert_offset = "Vertical Offset (Pixels):"
 filename_free_text = "Filename Free Text:"
 filename_hint = "Write something here"
 reset = "Reset"
+save_masters = "Save Calibration Masters:"
 
 [preview]
 file = "File:"

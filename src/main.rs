@@ -1,6 +1,16 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-use analysis::sigma::AnalysisSeries;
+#[macro_use]
+extern crate lazy_static;
+#[macro_use]
+extern crate rust_i18n;
+#[macro_use]
+extern crate stump;
+
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::Mutex;
+
 use anyhow::Result;
 use eframe::egui;
 use egui::Pos2;
@@ -9,9 +19,13 @@ use egui_extras::install_image_loaders;
 use serde::{Deserialize, Serialize};
 use solhat::drizzle::Scale;
 use solhat::target::Target;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::sync::Mutex;
+
+use analysis::*;
+use analysis::sigma::AnalysisSeries;
+use process::RunResultsContainer;
+use state::*;
+use taskstatus::*;
+use toggle::toggle;
 
 mod histogram;
 mod imageutil;
@@ -19,30 +33,13 @@ mod preview;
 mod resultview;
 
 mod toggle;
-use toggle::toggle;
-
 mod taskstatus;
-use taskstatus::*;
-
 mod cancel;
 
 mod analysis;
-use analysis::*;
-
 mod process;
-use process::RunResultsContainer;
-
 mod state;
-use state::*;
 
-#[macro_use]
-extern crate stump;
-
-#[macro_use]
-extern crate lazy_static;
-
-#[macro_use]
-extern crate rust_i18n;
 i18n!("locales", fallback = "en");
 
 struct AnalysisResultsContainer {
@@ -733,6 +730,10 @@ impl SolHat {
                     egui::TextEdit::singleline(&mut self.state.freetext)
                         .hint_text(t!("processoptions.filename_hint")),
                 );
+                ui.end_row();
+
+                ui.label(t!("processoptions.save_masters"));
+                ui.add(toggle(&mut self.state.save_masters));
                 ui.end_row();
             });
     }
