@@ -1,24 +1,24 @@
-use crate::analysis;
-use crate::imageutil;
-use crate::state::ApplicationState;
 use anyhow::Error;
 use anyhow::Result;
 use egui::Ui;
-use solhat::ser::SerFile;
-use solhat::ser::SerFrame;
+use solhat::datasource::{DataFrame, DataSource};
+
+use crate::analysis;
 // use std::{error::Error, fmt};
 use crate::histogram::Histogram;
+use crate::imageutil;
+use crate::state::ApplicationState;
 
-pub struct SerPreviewPane {
+pub struct SerPreviewPane<F: DataSource> {
     texture_handle: Option<egui::TextureHandle>,
     texture_name: String,
-    ser_file: Option<SerFile>,
+    ser_file: Option<F>,
     histogram: Option<Histogram>,
     show_frame_no: usize,
     animate: bool,
 }
 
-impl Default for SerPreviewPane {
+impl<F: DataSource> Default for SerPreviewPane<F> {
     fn default() -> Self {
         Self {
             texture_handle: None,
@@ -31,14 +31,14 @@ impl Default for SerPreviewPane {
     }
 }
 
-impl SerPreviewPane {
+impl<F: DataSource> SerPreviewPane<F> {
     pub fn is_empty(&self) -> bool {
         self.texture_handle.is_none()
     }
 
     fn update_texture(&mut self, ctx: &egui::Context) -> Result<()> {
         if let Some(ser_file) = &self.ser_file {
-            let first_image: SerFrame = ser_file.get_frame(self.show_frame_no)?;
+            let first_image: DataFrame = ser_file.get_frame(self.show_frame_no)?;
             let cimage = imageutil::sciimg_to_color_image(&first_image.buffer);
             self.texture_handle =
                 Some(ctx.load_texture(&self.texture_name, cimage, Default::default()));
@@ -61,7 +61,7 @@ impl SerPreviewPane {
     }
 
     pub fn load_ser(&mut self, ctx: &egui::Context, texture_path: &str) -> Result<()> {
-        self.ser_file = Some(SerFile::load_ser(texture_path)?);
+        self.ser_file = Some(F::open(texture_path)?);
 
         self.update_texture(ctx)?;
         self.update_histogram()?;
@@ -103,7 +103,7 @@ impl SerPreviewPane {
                 ui.vertical_centered(|ui| {
                     ui.horizontal(|ui| {
                         ui.label(t!("preview.file"));
-                        ui.label(ser_file.source_file.to_string());
+                        ui.label(ser_file.source_file().to_string());
                     });
                     egui::Grid::new("metadata")
                         .num_columns(2)
@@ -111,31 +111,31 @@ impl SerPreviewPane {
                         .striped(true)
                         .show(ui, |ui| {
                             ui.label(t!("preview.image_width"));
-                            ui.label(ser_file.image_width.to_string());
+                            ui.label(ser_file.image_width().to_string());
 
                             ui.label(t!("preview.image_height"));
-                            ui.label(ser_file.image_height.to_string());
+                            ui.label(ser_file.image_height().to_string());
                             ui.end_row();
 
                             ui.label(t!("preview.pixel_depth"));
-                            ui.label(format!("{} {}", ser_file.pixel_depth, t!("preview.bits")));
+                            ui.label(format!("{} {}", ser_file.pixel_depth(), t!("preview.bits")));
 
                             ui.label(t!("preview.frame_count"));
-                            ui.label(ser_file.frame_count.to_string());
+                            ui.label(ser_file.frame_count().to_string());
                             ui.end_row();
 
                             ui.label(t!("preview.observer"));
-                            ui.label(&ser_file.observer);
+                            ui.label(&ser_file.observer());
 
                             ui.label(t!("preview.instrument"));
-                            ui.label(&ser_file.instrument);
+                            ui.label(&ser_file.instrument());
                             ui.end_row();
 
                             ui.label(t!("preview.telescope"));
-                            ui.label(ser_file.telescope.to_string());
+                            ui.label(ser_file.telescope().to_string());
 
                             ui.label(t!("preview.time_of_observation"));
-                            ui.label(format!("{:?}", ser_file.date_time_utc.to_chrono_utc()));
+                            ui.label(format!("{:?}", ser_file.date_time_utc().to_chrono_utc()));
                             ui.end_row();
                         });
                 });
@@ -166,7 +166,7 @@ impl SerPreviewPane {
             // to preview the frames in the file.
             if *animate {
                 *show_frame_no += 1;
-                if *show_frame_no == ser_file.frame_count {
+                if *show_frame_no == ser_file.frame_count() {
                     *show_frame_no = 0;
                 }
             }
@@ -176,7 +176,7 @@ impl SerPreviewPane {
                     if *show_frame_no > 0 {
                         *show_frame_no -= 1;
                     } else {
-                        *show_frame_no = ser_file.frame_count - 1
+                        *show_frame_no = ser_file.frame_count() - 1
                     }
                 }
 
@@ -193,7 +193,7 @@ impl SerPreviewPane {
                     *show_frame_no = 0;
                 }
                 if ui.button(">").clicked() {
-                    if *show_frame_no < ser_file.frame_count - 1 {
+                    if *show_frame_no < ser_file.frame_count() - 1 {
                         *show_frame_no += 1;
                     } else {
                         *show_frame_no = 0;
@@ -202,7 +202,7 @@ impl SerPreviewPane {
             });
             if ui
                 .add(
-                    egui::Slider::new(show_frame_no, 0..=(ser_file.frame_count - 1))
+                    egui::Slider::new(show_frame_no, 0..=(ser_file.frame_count() - 1))
                         .prefix(t!("preview.frame")),
                 )
                 .changed()
@@ -217,7 +217,7 @@ impl SerPreviewPane {
     }
 }
 
-impl SerPreviewPane {
+impl<F: DataSource> SerPreviewPane<F> {
     pub fn ui(&mut self, ui: &mut Ui) {
         self.metadata_ui(ui);
 

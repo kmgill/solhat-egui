@@ -17,6 +17,7 @@ use egui::Vec2;
 use egui_extras::install_image_loaders;
 use serde::{Deserialize, Serialize};
 use solhat::drizzle::Scale;
+use solhat::ser::SerFile;
 use solhat::target::Target;
 
 use analysis::sigma::AnalysisSeries;
@@ -80,19 +81,19 @@ struct SolHat {
     state: state::ApplicationState,
 
     #[serde(skip_serializing, skip_deserializing)]
-    preview_light: preview::SerPreviewPane,
+    preview_light: preview::SerPreviewPane<SerFile>,
 
     #[serde(skip_serializing, skip_deserializing)]
-    preview_dark: preview::SerPreviewPane,
+    preview_dark: preview::SerPreviewPane<SerFile>,
 
     #[serde(skip_serializing, skip_deserializing)]
-    preview_flat: preview::SerPreviewPane,
+    preview_flat: preview::SerPreviewPane<SerFile>,
 
     #[serde(skip_serializing, skip_deserializing)]
-    preview_darkflat: preview::SerPreviewPane,
+    preview_darkflat: preview::SerPreviewPane<SerFile>,
 
     #[serde(skip_serializing, skip_deserializing)]
-    preview_bias: preview::SerPreviewPane,
+    preview_bias: preview::SerPreviewPane<SerFile>,
 
     #[serde(skip_serializing, skip_deserializing)]
     analysis_chart: analysis::AnalysisChart,
@@ -214,7 +215,7 @@ macro_rules! create_file_input {
 impl SolHat {
     fn ensure_texture_loaded(
         ctx: &egui::Context,
-        preview_pane: &mut preview::SerPreviewPane,
+        preview_pane: &mut preview::SerPreviewPane<SerFile>,
         ser_path: &Option<String>,
     ) -> Result<()> {
         if preview_pane.is_empty() && ser_path.is_some() {
