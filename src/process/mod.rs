@@ -1,16 +1,19 @@
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
+
 use anyhow::{Error, Result};
 use sciimg::prelude::Image;
 use solhat::calibrationframe::{CalibrationImage, ComputeMethod};
-use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
 // use solhat::anaysis::frame_sigma_analysis_window_size;
 use solhat::context::{ProcessContext, ProcessParameters};
+use solhat::datasource::DataSource;
 use solhat::drizzle::BilinearDrizzle;
 use solhat::framerecord::FrameRecord;
 use solhat::ldcorrect;
 use solhat::limiting::frame_limit_determinate;
 // use solhat::offsetting::frame_offset_analysis;
 use solhat::rotation::frame_rotation_analysis;
+use solhat::ser::SerFile;
 use solhat::stacking::process_frame_stacking;
 
 use crate::analysis::sigma::frame_analysis_window_size;
@@ -32,7 +35,7 @@ pub async fn run_async(
 ) -> Result<RunResultsContainer> {
     info!("Async task started");
 
-    let mut context = build_solhat_context(&app_state)?;
+    let mut context: ProcessContext<SerFile> = build_solhat_context(&app_state)?;
 
     /////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////
@@ -69,7 +72,7 @@ pub async fn run_async(
             ldcorrect::limb_darkening_correction_on_image(
                 &stacked_buffer,
                 solar_radius,
-                &vec![ld_coefficient],
+                &[ld_coefficient],
                 10.0,
                 false,
             )?
@@ -115,7 +118,10 @@ pub async fn run_async(
     }
 }
 
-fn build_solhat_context(app_state: &ApplicationState) -> Result<ProcessContext> {
+fn build_solhat_context<F>(app_state: &ApplicationState) -> Result<ProcessContext<F>>
+where
+    F: DataSource + Send + Sync + 'static,
+{
     let params = app_state.to_parameters();
 
     set_task_status(&t!("tasks.processing_master_flat"), 0, 0);
@@ -205,7 +211,10 @@ fn build_solhat_context(app_state: &ApplicationState) -> Result<ProcessContext> 
     Ok(context)
 }
 
-fn frame_sigma_analysis(context: &ProcessContext) -> Result<Vec<FrameRecord>> {
+fn frame_sigma_analysis<F>(context: &ProcessContext<F>) -> Result<Vec<FrameRecord>>
+where
+    F: DataSource + Send + Sync + 'static,
+{
     check_cancel_status()?;
 
     let frame_count = context.frame_records.len();
@@ -233,7 +242,10 @@ fn frame_sigma_analysis(context: &ProcessContext) -> Result<Vec<FrameRecord>> {
     Ok(frame_records)
 }
 
-fn frame_limiting(context: &ProcessContext) -> Result<Vec<FrameRecord>> {
+fn frame_limiting<F>(context: &ProcessContext<F>) -> Result<Vec<FrameRecord>>
+where
+    F: DataSource + Send + Sync + 'static,
+{
     check_cancel_status()?;
 
     let frame_count = context.frame_records.len();
@@ -254,7 +266,10 @@ fn frame_limiting(context: &ProcessContext) -> Result<Vec<FrameRecord>> {
     Ok(frame_records)
 }
 
-fn frame_rotation(context: &ProcessContext) -> Result<Vec<FrameRecord>> {
+fn frame_rotation<F>(context: &ProcessContext<F>) -> Result<Vec<FrameRecord>>
+where
+    F: DataSource + Send + Sync + 'static,
+{
     check_cancel_status()?;
 
     let frame_count = context.frame_records.len();
@@ -278,7 +293,10 @@ fn frame_rotation(context: &ProcessContext) -> Result<Vec<FrameRecord>> {
     Ok(frame_records)
 }
 
-fn drizzle_stacking(context: &ProcessContext) -> Result<BilinearDrizzle> {
+fn drizzle_stacking<F>(context: &ProcessContext<F>) -> Result<BilinearDrizzle>
+where
+    F: DataSource + Send + Sync + 'static,
+{
     check_cancel_status()?;
 
     let frame_count = context.frame_records.len();
