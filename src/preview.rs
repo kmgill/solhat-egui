@@ -61,7 +61,7 @@ impl<F: DataSource> SerPreviewPane<F> {
     }
 
     pub fn load_ser(&mut self, ctx: &egui::Context, texture_path: &str) -> Result<()> {
-        self.ser_file = Some(F::open(texture_path)?);
+        self.ser_file = Some(F::open(&[texture_path.to_string()])?);
 
         self.update_texture(ctx)?;
         self.update_histogram()?;
