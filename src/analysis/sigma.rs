@@ -5,7 +5,9 @@ use rayon::prelude::*;
 use sciimg::{max, min, quality};
 use solhat::calibrationframe::CalibrationImage;
 use solhat::context::ProcessContext;
+use solhat::datasource::DataSource;
 use solhat::framerecord::FrameRecord;
+use solhat::ser::SerFile;
 
 use crate::cancel::{self, *};
 use crate::state::ApplicationState;
@@ -75,7 +77,7 @@ pub async fn run_sigma_analysis(
     app_state: ApplicationState,
 ) -> Result<AnalysisSeries, TaskCompletion> {
     let params = app_state.to_parameters();
-    let context = match ProcessContext::create_with_calibration_frames(
+    let context = match ProcessContext::<SerFile>::create_with_calibration_frames(
         &params,
         CalibrationImage::new_empty(),
         CalibrationImage::new_empty(),
@@ -126,13 +128,14 @@ pub async fn run_sigma_analysis(
 
 /// Combined method of center-of-mass and sigma analysis. This is to limit the number of
 /// frame reads from disk which are rather expensive in terms of CPU and time.
-pub fn frame_analysis_window_size<F>(
-    context: &ProcessContext,
+pub fn frame_analysis_window_size<C, F>(
+    context: &ProcessContext<F>,
     window_size: usize,
-    on_frame_checked: F,
+    on_frame_checked: C,
 ) -> Result<Vec<FrameRecord>>
 where
-    F: Fn(&FrameRecord) + Send + Sync + 'static,
+    C: Fn(&FrameRecord) + Send + Sync + 'static,
+    F: DataSource + Send + Sync + 'static,
 {
     let frame_records: Vec<FrameRecord> = context
         .frame_records
