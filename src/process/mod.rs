@@ -7,7 +7,6 @@ use solhat::calibrationframe::{CalibrationImage, ComputeMethod};
 // use solhat::anaysis::frame_sigma_analysis_window_size;
 use solhat::context::{ProcessContext, ProcessParameters};
 use solhat::datasource::DataSource;
-use solhat::drizzle::BilinearDrizzle;
 use solhat::framerecord::FrameRecord;
 use solhat::ldcorrect;
 use solhat::limiting::frame_limit_determinate;
@@ -58,11 +57,10 @@ pub async fn run_async(
     if context.frame_records.is_empty() {
         Err(Error::msg("Zero frames to stack. Cannot continue"))
     } else {
-        let drizzle_output = drizzle_stacking(&context)?;
+        let stacked_buffer = drizzle_stacking(&context)?;
 
-        check_cancel_status()?;
-        set_task_status(&t!("tasks.merging_stack_buffers"), 0, 0);
-        let stacked_buffer = drizzle_output.get_finalized().unwrap();
+        // check_cancel_status()?;
+        // set_task_status(&t!("tasks.merging_stack_buffers"), 0, 0);
 
         let do_ld_correction = app_state.ld_correction;
         let solar_radius = app_state.solar_radius_pixels;
@@ -274,7 +272,7 @@ where
 
     let frame_count = context.frame_records.len();
 
-    set_task_status(&t!("tasks.parallactice_angle"), frame_count, 0);
+    set_task_status(&t!("tasks.parallactic_angle"), frame_count, 0);
 
     let counter = Arc::new(Mutex::new(0));
 
@@ -293,7 +291,7 @@ where
     Ok(frame_records)
 }
 
-fn drizzle_stacking<F>(context: &ProcessContext<F>) -> Result<BilinearDrizzle>
+fn drizzle_stacking<F>(context: &ProcessContext<F>) -> Result<Image>
 where
     F: DataSource + Send + Sync + 'static,
 {
@@ -306,14 +304,12 @@ where
     let counter = Arc::new(Mutex::new(0));
 
     // TODO: Implement cancel detection within solhat core.
-    let drizzle_output = process_frame_stacking(context, move |_fr| {
+    process_frame_stacking(context, move |_fr| {
         info!("process_frame_stacking(): Frame processed.");
         // check_cancel_status(&sender);
 
         let mut c = counter.lock().unwrap();
         *c += 1;
         set_task_status(&t!("tasks.stacking"), frame_count, *c)
-    })?;
-
-    Ok(drizzle_output)
+    })
 }

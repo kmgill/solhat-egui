@@ -17,6 +17,7 @@ use egui::Vec2;
 use egui_extras::install_image_loaders;
 use serde::{Deserialize, Serialize};
 use solhat::drizzle::Scale;
+use solhat::drizzle::StackAlgorithm;
 use solhat::ser::SerFile;
 use solhat::target::Target;
 
@@ -650,6 +651,27 @@ impl SolHat {
                         t!("processoptions.drizzle_30x"),
                     );
                 });
+                ui.end_row();
+
+                ui.label(t!("processoptions.algorithm"));
+                ui.horizontal(|ui| {
+                    ui.selectable_value(
+                        &mut self.state.algorithm,
+                        StackAlgorithm::Average,
+                        t!("processoptions.algorithm_average"),
+                    );
+                    ui.selectable_value(
+                        &mut self.state.algorithm,
+                        StackAlgorithm::Median,
+                        t!("processoptions.algorithm_median"),
+                    );
+                    ui.selectable_value(
+                        &mut self.state.algorithm,
+                        StackAlgorithm::Minimum,
+                        t!("processoptions.algorithm_minimum"),
+                    );
+                });
+
                 ui.end_row();
 
                 ui.label(t!("processoptions.use_max_frames"));

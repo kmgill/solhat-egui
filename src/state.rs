@@ -9,6 +9,7 @@ use eframe::egui;
 use serde::{Deserialize, Serialize};
 use solhat::context::*;
 use solhat::drizzle::Scale;
+use solhat::drizzle::StackAlgorithm;
 use solhat::target::Target;
 
 #[derive(Default, Deserialize, Serialize, Eq, PartialEq, Clone)]
@@ -90,6 +91,7 @@ pub struct ApplicationState {
     pub target: Target,
     pub obj_detection_threshold: f64,
     pub drizzle_scale: Scale,
+    pub algorithm: StackAlgorithm,
     pub max_frames: usize,
     pub min_sigma: f64,
     pub max_sigma: f64,
@@ -121,6 +123,7 @@ impl Default for ApplicationState {
             obs_longitude: -118.0,
             target: Target::Sun,
             drizzle_scale: Scale::Scale1_0,
+            algorithm: StackAlgorithm::Average,
             obj_detection_threshold: 20000.0,
             hot_pixel_map: None,
             max_frames: 5000,
@@ -171,6 +174,7 @@ impl ApplicationState {
             max_sigma: Some(self.max_sigma),
             top_percentage: Some(self.top_percentage),
             drizzle_scale: self.drizzle_scale,
+            algorithm: self.algorithm,
             initial_rotation: 0.0,
             flat_inputs: self.flat.to_owned(),
             dark_inputs: self.dark.to_owned(),
