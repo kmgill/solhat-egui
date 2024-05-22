@@ -1,6 +1,6 @@
 [package]
 name = "solhat-egui"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 license = "MIT"
 description = "Application for processing and stacking raw solar and lunar imagery"
