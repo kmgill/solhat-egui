@@ -1,4 +1,4 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
+// #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
 #[macro_use]
 extern crate lazy_static;
@@ -15,6 +15,8 @@ use anyhow::Result;
 use eframe::{egui, glow};
 use egui::Vec2;
 use egui_extras::install_image_loaders;
+use native_dialog::MessageDialog;
+use native_dialog::MessageType;
 use serde::{Deserialize, Serialize};
 use solhat::drizzle::Scale;
 use solhat::drizzle::StackAlgorithm;
@@ -104,6 +106,12 @@ struct SolHat {
 
     #[serde(skip_serializing, skip_deserializing)]
     image_loaders_installed: bool,
+
+    #[serde(skip_serializing, skip_deserializing)]
+    error_window_visible: bool,
+
+    #[serde(skip_serializing, skip_deserializing)]
+    error_message: Option<String>,
 }
 
 #[tokio::main]
@@ -251,10 +259,17 @@ impl SolHat {
         }
 
         if let Ok(mut img_results) = IMAGE_RESULTS.lock() {
-            if let Some(results) = &img_results.results {
-                self.result_view.set_image(results, ctx)?;
-                self.state.window.selected_preview_pane = PreviewPane::Results;
-                img_results.results = None;
+            if let Some(results) = &mut img_results.results {
+                if results.was_success {
+                    self.result_view.set_image(results, ctx)?;
+                    self.state.window.selected_preview_pane = PreviewPane::Results;
+                    img_results.results = None;
+                } else if results.error.is_some() {
+                    println!("Error Detected!");
+                    self.error_window_visible = true;
+                    self.error_message = results.error.clone();
+                    results.error = None;
+                }
             } else if self.result_view.is_empty()
                 && self.state.window.selected_preview_pane == PreviewPane::Results
             {
@@ -272,6 +287,26 @@ impl SolHat {
         self.state.window.update_from_window_info(ctx, frame);
 
         let task_running = taskstatus::is_task_running();
+
+        ///////////////////////////
+        // Error Message Modal
+        ///////////////////////////
+        if self.error_message.is_some() {
+            MessageDialog::new()
+                .set_type(MessageType::Error)
+                .set_title("Error")
+                .set_text(
+                    &self
+                        .error_message
+                        .clone()
+                        .unwrap_or(t!("unexpected_error").to_string()),
+                )
+                .show_alert()
+                .unwrap();
+
+            println!("Clearing error message");
+            self.error_message = None;
+        }
 
         egui::SidePanel::left("left_panel")
             .resizable(true)
@@ -783,8 +818,14 @@ impl SolHat {
             {
                 let results = process::run_async(output_filename, state_copy)
                     .await
-                    .unwrap();
-
+                    .unwrap_or_else(|why| RunResultsContainer {
+                        was_success: false,
+                        image: None,
+                        error: Some(why.to_string()),
+                        context: None,
+                        output_filename: None,
+                        num_frames_used: 0,
+                    });
                 IMAGE_RESULTS.lock().unwrap().results = Some(results);
                 set_task_completed();
             }

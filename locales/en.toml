@@ -13,6 +13,8 @@ start = "Start"
 cancel = "Cancel"
 theme = "Theme:"
 
+unexpected_error = "Unexpected Error"
+
 
 [histogram]
 logarithmic = "Logarithmic"

@@ -22,10 +22,12 @@ use crate::taskstatus::*;
 
 #[derive(Clone)]
 pub struct RunResultsContainer {
-    pub image: Image,
-    pub context: ProcessParameters,
-    pub output_filename: PathBuf,
-    pub num_frames_used: usize,
+    pub was_success: bool,
+    pub image: Option<Image>,
+    pub error: Option<String>,
+    pub context: Option<ProcessParameters>,
+    pub output_filename: Option<PathBuf>,
+    pub num_frames_used: usize
 }
 
 pub async fn run_async(
@@ -108,10 +110,12 @@ pub async fn run_async(
         set_task_status(&t!("tasks.done"), 1, 1);
 
         Ok(RunResultsContainer {
-            image: corrected_buffer,
-            context: context.parameters,
-            output_filename: output_filename.to_owned(),
-            num_frames_used: context.frame_records.len(),
+            was_success: true,
+            image: Some(corrected_buffer),
+            error: None,
+            context: Some(context.parameters),
+            output_filename: Some(output_filename.to_owned()),
+            num_frames_used: context.frame_records.len()
         })
     }
 }

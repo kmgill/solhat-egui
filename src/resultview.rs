@@ -63,7 +63,9 @@ impl ResultViewPane {
     fn update_histogram(&mut self) -> Result<()> {
         self.histogram.reset();
         if let Some(results) = &self.results {
-            self.histogram.compute_from_image(&results.image);
+            if results.image.is_some() {
+                self.histogram.compute_from_image(&results.image.clone().unwrap());
+            }
             Ok(())
         } else {
             Err(Error::msg("No ser file loaded"))
@@ -84,11 +86,14 @@ impl ResultViewPane {
 
     fn update_texture(&mut self, ctx: &egui::Context) -> Result<()> {
         if let Some(results) = &self.results {
-            let image_adjusted = self.apply_filters(&results.image);
 
-            let cimage = imageutil::sciimg_to_color_image(&image_adjusted);
-            self.texture_handle =
-                Some(ctx.load_texture(&self.texture_name, cimage, Default::default()));
+            if results.image.is_some() {
+                let image_adjusted = self.apply_filters(&results.image.clone().unwrap());
+
+                let cimage = imageutil::sciimg_to_color_image(&image_adjusted);
+                self.texture_handle =
+                    Some(ctx.load_texture(&self.texture_name, cimage, Default::default()));
+            }
             Ok(())
         } else {
             Err(Error::msg("No ser file loaded"))
@@ -219,7 +224,11 @@ impl ResultViewPane {
 
     fn get_output_path(&self) -> PathBuf {
         if let Some(results) = &self.results {
-            results.output_filename.clone()
+            if results.output_filename.is_some() {
+                results.output_filename.clone().unwrap()
+            } else {
+                dirs::home_dir().unwrap()
+            }
         } else {
             dirs::home_dir().unwrap()
         }
@@ -253,11 +262,15 @@ impl ResultViewPane {
                             println!("Saving To Path: {:?}", path);
 
                             if let Some(results) = &self.results {
-                                let image_adjusted = self.apply_filters(&results.image);
+                                if results.image.is_some() {
+                                    let image_adjusted = self.apply_filters(&results.image.clone().unwrap());
 
-                                image_adjusted
-                                    .save(path.to_string_lossy().as_ref())
-                                    .expect("Failed to save image");
+                                    image_adjusted
+                                        .save(path.to_string_lossy().as_ref())
+                                        .expect("Failed to save image");
+                                } else {
+                                    panic!("Cannot save image: Process resulted in error")
+                                }
                             } else {
                                 panic!("Cannot save image. No image to save.");
                             }

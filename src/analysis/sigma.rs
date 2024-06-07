@@ -137,6 +137,8 @@ where
     C: Fn(&FrameRecord) + Send + Sync + 'static,
     F: DataSource + Send + Sync + 'static,
 {
+    //Err(anyhow!("Testing Error"))
+
     let frame_records: Vec<FrameRecord> = context
         .frame_records
         .par_iter()
