@@ -64,7 +64,8 @@ impl ResultViewPane {
         self.histogram.reset();
         if let Some(results) = &self.results {
             if results.image.is_some() {
-                self.histogram.compute_from_image(&results.image.clone().unwrap());
+                self.histogram
+                    .compute_from_image(&results.image.clone().unwrap());
             }
             Ok(())
         } else {
@@ -86,7 +87,6 @@ impl ResultViewPane {
 
     fn update_texture(&mut self, ctx: &egui::Context) -> Result<()> {
         if let Some(results) = &self.results {
-
             if results.image.is_some() {
                 let image_adjusted = self.apply_filters(&results.image.clone().unwrap());
 
@@ -263,7 +263,8 @@ impl ResultViewPane {
 
                             if let Some(results) = &self.results {
                                 if results.image.is_some() {
-                                    let image_adjusted = self.apply_filters(&results.image.clone().unwrap());
+                                    let image_adjusted =
+                                        self.apply_filters(&results.image.clone().unwrap());
 
                                     image_adjusted
                                         .save(path.to_string_lossy().as_ref())

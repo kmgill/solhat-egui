@@ -27,7 +27,7 @@ pub struct RunResultsContainer {
     pub error: Option<String>,
     pub context: Option<ProcessParameters>,
     pub output_filename: Option<PathBuf>,
-    pub num_frames_used: usize
+    pub num_frames_used: usize,
 }
 
 pub async fn run_async(
@@ -115,7 +115,7 @@ pub async fn run_async(
             error: None,
             context: Some(context.parameters),
             output_filename: Some(output_filename.to_owned()),
-            num_frames_used: context.frame_records.len()
+            num_frames_used: context.frame_records.len(),
         })
     }
 }
