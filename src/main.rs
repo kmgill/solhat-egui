@@ -138,10 +138,14 @@ async fn main() -> Result<(), eframe::Error> {
     // If the config file (literally a serialized version of the last run window state) errors on read
     // or doesn't exist, we'll just ignore it and start from scratch.
     let solhat = if let Ok(app_state) = ApplicationState::load_from_userhome() {
-        options.viewport.inner_size = Some(Vec2::new(
-            app_state.window.window_width as f32,
-            app_state.window.window_height as f32,
-        ));
+        // if either value is zero, then egui will panic with an invalid window
+        // geometry error. This value isn't always persisted resulting in zeros in the toml file.
+        if app_state.window.window_width > 0 && app_state.window.window_height > 0 {
+            options.viewport.inner_size = Some(Vec2::new(
+                app_state.window.window_width as f32,
+                app_state.window.window_height as f32,
+            ));
+        }
         println!("Creating application with previous settings");
         Box::new(SolHat {
             state: app_state,
